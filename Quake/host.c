@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "bgmusic.h"
+#include "oquake_star_integration.h"
 #include "tasks.h"
 #include <setjmp.h>
 #ifdef _DEBUG
@@ -1120,6 +1121,8 @@ void Host_Init (void)
 #endif
 	LOC_Init (); // for 2021 rerelease support.
 
+	OQuake_STAR_Init ();
+
 	host_initialized = true;
 	Con_Printf ("\n========= Quake Initialized =========\n\n");
 
@@ -1163,6 +1166,8 @@ void Host_Shutdown (void)
 
 	// keep Con_Printf from trying to update the screen
 	scr_disabled_for_loading = true;
+
+	OQuake_STAR_Cleanup ();
 
 	Host_WriteConfiguration ();
 
