@@ -33,6 +33,8 @@ extern void PF_sv_finalefinished (void);
 extern void PF_sv_CheckPlayerEXFlags (void);
 extern void PF_sv_walkpathtogoal (void);
 extern void PF_sv_localsound (void);
+extern void PF_OQuake_OnKeyPickup (void);
+extern void PF_OQuake_CheckDoorAccess (void);
 
 static float PR_GetVMScale (void)
 {
@@ -5238,6 +5240,9 @@ static struct
 	{"ex_draw_cylinder",			PF_Fixme,						PF_NoCSQC,						0,		"void(vector origin, float halfHeight, float radius, float colormap, float lifetime, float depthtest)"},
 	{"ex_bot_movetopoint",			PF_Fixme,						PF_NoCSQC,						0,		"float(entity bot, vector point)"},
 	{"ex_bot_followentity",			PF_Fixme,						PF_NoCSQC,						0,		"float(entity bot, entity goal)"},
+	/* OQuake OASIS STAR API - cross-game keys with ODOOM */
+	{"ex_OQuake_OnKeyPickup",		PF_OQuake_OnKeyPickup,			PF_NoCSQC,						0,		"void(string keyname)"},
+	{"ex_OQuake_CheckDoorAccess",	PF_OQuake_CheckDoorAccess,		PF_NoCSQC,						0,		"float(string doorname, string requiredkey)"},
 };
 // clang-format on
 
