@@ -46,6 +46,7 @@ static qpic_t *sb_face_invis;
 static qpic_t *sb_face_quad;
 static qpic_t *sb_face_invuln;
 static qpic_t *sb_face_invis_invuln;
+static qpic_t *sb_face_anorak;
 
 qboolean sb_showscores;
 
@@ -133,6 +134,40 @@ qpic_t *Sbar_CheckPicFromWad (const char *name)
 	return r;
 }
 
+static qpic_t *Sbar_LoadExternalPic (const char *path_no_ext)
+{
+	typedef struct
+	{
+		gltexture_t *gltexture;
+		float		 sl, tl, sh, th;
+	} oq_glpic_t;
+
+	byte		   *data;
+	int				width, height;
+	enum srcformat	fmt;
+	oq_glpic_t		gl;
+	qpic_t		   *pic;
+
+	data = Image_LoadImage (path_no_ext, &width, &height, &fmt, 0);
+	if (!data)
+		return NULL;
+
+	pic = (qpic_t *)Mem_Alloc (sizeof (qpic_t) - 4 + sizeof (oq_glpic_t));
+	pic->width = width;
+	pic->height = height;
+
+	gl.gltexture = TexMgr_LoadImage (
+		NULL, path_no_ext, width, height, fmt, data, path_no_ext, 0, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
+	gl.sl = 0;
+	gl.tl = 0;
+	gl.sh = 1;
+	gl.th = 1;
+	memcpy (pic->data, &gl, sizeof (oq_glpic_t));
+
+	Mem_Free (data);
+	return pic;
+}
+
 /*
 ===============
 Sbar_LoadPics -- johnfitz -- load all the sbar pics
@@ -217,6 +252,9 @@ void Sbar_LoadPics (void)
 	sb_face_invuln = Draw_PicFromWad ("face_invul2");
 	sb_face_invis_invuln = Draw_PicFromWad ("face_inv2");
 	sb_face_quad = Draw_PicFromWad ("face_quad");
+	sb_face_anorak = Sbar_LoadExternalPic ("gfx/face_anorak");
+	if (!sb_face_anorak)
+		sb_face_anorak = Draw_TryCachePic ("gfx/face_anorak.lmp", TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
 
 	sb_sbar = Draw_PicFromWad ("sbar");
 	sb_ibar = Draw_PicFromWad ("ibar");
@@ -803,6 +841,12 @@ void Sbar_DrawFace (cb_context_t *cbx, int x, int y, qboolean classic_style)
 	}
 	// PGM 01/19/97 - team color drawing
 
+	if (OQuake_STAR_ShouldUseAnorakFace () && sb_face_anorak)
+	{
+		Sbar_DrawPic (cbx, x, y, sb_face_anorak);
+		return;
+	}
+
 	if ((cl.items & (IT_INVISIBILITY | IT_INVULNERABILITY)) == (IT_INVISIBILITY | IT_INVULNERABILITY))
 	{
 		Sbar_DrawPic (cbx, x, y, sb_face_invis_invuln);
@@ -1280,6 +1324,7 @@ void Sbar_Draw (cb_context_t *cbx)
 		Sbar_DrawCSCQ (cbx);
 		GL_SetCanvas (cbx, CANVAS_DEFAULT);
 		OQuake_STAR_DrawInventoryOverlay (cbx);
+		OQuake_STAR_DrawBeamedInStatus (cbx);
 		return;
 	}
 
@@ -1311,6 +1356,7 @@ void Sbar_Draw (cb_context_t *cbx)
 
 	GL_SetCanvas (cbx, CANVAS_DEFAULT);
 	OQuake_STAR_DrawInventoryOverlay (cbx);
+	OQuake_STAR_DrawBeamedInStatus (cbx);
 }
 
 //=============================================================================
