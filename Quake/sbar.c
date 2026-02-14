@@ -22,8 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sbar.c -- status bar code
 
 #include "quakedef.h"
+#include "oquake_star_integration.h"
 
 #define STAT_MINUS 10 // num frame for '-' stats digit
+
+extern qboolean keydown[MAX_KEYS];
 
 static qpic_t *sb_nums[2][11];
 static qpic_t *sb_colon, *sb_slash;
@@ -1261,6 +1264,10 @@ static void Sbar_DrawModern (cb_context_t *cbx)
 Sbar_Draw
 ===============
 */
+
+/* Forward declaration for inventory overlay */
+extern void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx);
+
 void Sbar_Draw (cb_context_t *cbx)
 {
 	float w; // johnfitz
@@ -1271,6 +1278,8 @@ void Sbar_Draw (cb_context_t *cbx)
 	if ((scr_style.value < 1.0f) && cl.qcvm.extfuncs.CSQC_DrawHud && !qcvm)
 	{
 		Sbar_DrawCSCQ (cbx);
+		GL_SetCanvas (cbx, CANVAS_DEFAULT);
+		OQuake_STAR_DrawInventoryOverlay (cbx);
 		return;
 	}
 
@@ -1299,6 +1308,9 @@ void Sbar_Draw (cb_context_t *cbx)
 		Sbar_DrawClassic (cbx);
 	else
 		Sbar_DrawModern (cbx);
+
+	GL_SetCanvas (cbx, CANVAS_DEFAULT);
+	OQuake_STAR_DrawInventoryOverlay (cbx);
 }
 
 //=============================================================================
