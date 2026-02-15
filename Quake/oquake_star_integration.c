@@ -807,6 +807,11 @@ static void OQ_PollInventoryHotkeys(void) {
         return;
     }
 
+    if (OQ_KeyPressed(K_LEFTARROW))
+        OQ_InventoryPrevTab_f();
+    if (OQ_KeyPressed(K_RIGHTARROW))
+        OQ_InventoryNextTab_f();
+
     if (OQ_KeyPressed(K_UPARROW)) {
         g_inventory_selected_row--;
         OQ_ClampSelection(grouped_count);
