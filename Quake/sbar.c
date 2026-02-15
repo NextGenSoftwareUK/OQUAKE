@@ -1359,6 +1359,7 @@ void Sbar_Draw (cb_context_t *cbx)
 		GL_SetCanvas (cbx, CANVAS_DEFAULT);
 		OQuake_STAR_DrawInventoryOverlay (cbx);
 		OQuake_STAR_DrawBeamedInStatus (cbx);
+		OQuake_STAR_DrawVersionStatus (cbx);
 		return;
 	}
 
@@ -1391,6 +1392,7 @@ void Sbar_Draw (cb_context_t *cbx)
 	GL_SetCanvas (cbx, CANVAS_DEFAULT);
 	OQuake_STAR_DrawInventoryOverlay (cbx);
 	OQuake_STAR_DrawBeamedInStatus (cbx);
+	OQuake_STAR_DrawVersionStatus (cbx);
 }
 
 //=============================================================================

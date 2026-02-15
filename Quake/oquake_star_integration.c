@@ -538,6 +538,11 @@ static void OQ_HandleSendPopupTyping(void)
             }
         }
     }
+    if (OQ_KeyPressed(' ') && len < OQ_SEND_TARGET_MAX) {
+        g_inventory_send_target[len] = ' ';
+        g_inventory_send_target[len + 1] = 0;
+        len++;
+    }
     if ((OQ_KeyPressed('_') || OQ_KeyPressed('-') || OQ_KeyPressed('.')) && len < OQ_SEND_TARGET_MAX) {
         if (keydown['_'])
             g_inventory_send_target[len] = '_';
@@ -760,11 +765,6 @@ static void OQ_PollInventoryHotkeys(void) {
         grouped_count = OQ_BuildGroupedRows(rep_indices, labels, modes, values, pending, OQ_MAX_INVENTORY_ITEMS);
     }
     OQ_ClampSelection(grouped_count);
-
-    if (OQ_KeyPressed('o') || OQ_KeyPressed('O'))
-        OQ_InventoryPrevTab_f();
-    if (OQ_KeyPressed('p') || OQ_KeyPressed('P'))
-        OQ_InventoryNextTab_f();
 
     if (g_inventory_send_popup != OQ_SEND_POPUP_NONE) {
         int mode = OQ_GROUP_MODE_COUNT;
@@ -1250,8 +1250,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             Draw_Fill(cbx, slot_x + 1, tab_y - 1, tab_slot_w - 2, 10, 224, 0.60f);
         Draw_String(cbx, tab_name_x, tab_y, tab_name);
     }
-    Draw_String(cbx, panel_x + 6, panel_y + panel_h - 16, "Arrows=Select  E=Use  Z=Send Avatar  X=Send Clan");
-    Draw_String(cbx, panel_x + 6, panel_y + panel_h - 8, "I=Toggle  O/P=Switch Tabs");
+    Draw_String(cbx, panel_x + 6, panel_y + panel_h - 8, "Arrows=Select  E=Use  Z=Send Avatar  X=Send Clan  I=Toggle  O/P=Switch Tabs");
 
     draw_y = panel_y + 54;
     grouped_count = OQ_BuildGroupedRows(
@@ -1328,6 +1327,26 @@ void OQuake_STAR_DrawBeamedInStatus(cb_context_t* cbx) {
     }
 
     Draw_String(cbx, 8, glheight - 24, status);
+}
+
+void OQuake_STAR_DrawVersionStatus(cb_context_t* cbx) {
+    extern int glwidth, glheight;
+    const char* text = "OQUAKE " OQUAKE_VERSION " (BUILD " OQUAKE_BUILD ")";
+    int text_w;
+    int x;
+    int y;
+
+    if (!cbx || glwidth <= 0 || glheight <= 0)
+        return;
+
+    text_w = (int)strlen(text) * 8;
+    x = glwidth - text_w - 8;
+    y = glheight - 24;
+    if (x < 8)
+        x = 8;
+    if (y < 8)
+        y = 8;
+    Draw_String(cbx, x, y, text);
 }
 
 int OQuake_STAR_ShouldUseAnorakFace(void) {
