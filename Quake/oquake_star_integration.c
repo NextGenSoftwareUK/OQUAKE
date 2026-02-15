@@ -505,13 +505,13 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
 
     Draw_Fill(cbx, panel_x, panel_y, panel_w, panel_h, 0, 0.70f);
     {
-        const char* header = "OASIS Inventory ";
+        const char* header = "OASIS INVENTORY ";
         int header_len = strlen(header);
         int header_x = panel_x + (panel_w - (header_len * 8)) / 2;
         if (header_x < panel_x + 6) header_x = panel_x + 6;
         Draw_String(cbx, header_x, panel_y + 6, header);
     }
-    tab_y = panel_y + 26;
+    tab_y = panel_y + 34;
     tab_slot_w = (panel_w - 24) / OQ_TAB_COUNT;
     for (tab = 0; tab < OQ_TAB_COUNT; tab++) {
         int slot_x = panel_x + 12 + tab * tab_slot_w;
