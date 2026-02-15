@@ -47,6 +47,14 @@ static qpic_t *sb_face_quad;
 static qpic_t *sb_face_invuln;
 static qpic_t *sb_face_invis_invuln;
 static qpic_t *sb_face_anorak;
+static unsigned int oq_star_prev_items;
+static qboolean	 oq_star_prev_stats_valid;
+static int		 oq_star_prev_shells;
+static int		 oq_star_prev_nails;
+static int		 oq_star_prev_rockets;
+static int		 oq_star_prev_cells;
+static int		 oq_star_prev_health;
+static int		 oq_star_prev_armor;
 
 qboolean sb_showscores;
 
@@ -1318,6 +1326,32 @@ void Sbar_Draw (cb_context_t *cbx)
 
 	if (scr_con_current == vid.height)
 		return; // console is full screen
+
+	OQuake_STAR_OnItemsChanged (oq_star_prev_items, (unsigned int)cl.items);
+	oq_star_prev_items = (unsigned int)cl.items;
+	if (oq_star_prev_stats_valid)
+	{
+		OQuake_STAR_OnStatsChanged (
+			oq_star_prev_shells,
+			cl.stats[STAT_SHELLS],
+			oq_star_prev_nails,
+			cl.stats[STAT_NAILS],
+			oq_star_prev_rockets,
+			cl.stats[STAT_ROCKETS],
+			oq_star_prev_cells,
+			cl.stats[STAT_CELLS],
+			oq_star_prev_health,
+			cl.stats[STAT_HEALTH],
+			oq_star_prev_armor,
+			cl.stats[STAT_ARMOR]);
+	}
+	oq_star_prev_shells = cl.stats[STAT_SHELLS];
+	oq_star_prev_nails = cl.stats[STAT_NAILS];
+	oq_star_prev_rockets = cl.stats[STAT_ROCKETS];
+	oq_star_prev_cells = cl.stats[STAT_CELLS];
+	oq_star_prev_health = cl.stats[STAT_HEALTH];
+	oq_star_prev_armor = cl.stats[STAT_ARMOR];
+	oq_star_prev_stats_valid = true;
 
 	if ((scr_style.value < 1.0f) && cl.qcvm.extfuncs.CSQC_DrawHud && !qcvm)
 	{
