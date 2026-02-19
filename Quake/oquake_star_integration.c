@@ -845,24 +845,13 @@ static int OQ_LoadJsonConfig(const char *json_path);
 /* Console command to reload config from JSON */
 static void OQ_ReloadConfig_f(void) {
     if (g_json_config_path[0]) {
-        Con_Printf("OQuake: Reloading config from: %s\n", g_json_config_path);
         if (OQ_LoadJsonConfig(g_json_config_path)) {
-            Con_Printf("OQuake: Config reloaded successfully\n");
             /* Re-apply the values to API config */
             const char* config_url = oquake_star_api_url.string;
             if (config_url && config_url[0]) {
                 g_star_config.base_url = config_url;
-                Con_Printf("OQuake: Updated API base_url to: %s\n", config_url);
             }
-            const char* oasis_url = oquake_oasis_api_url.string;
-            if (oasis_url && oasis_url[0]) {
-                Con_Printf("OQuake: Updated OASIS API URL to: %s\n", oasis_url);
-            }
-        } else {
-            Con_Printf("OQuake: Failed to reload config\n");
         }
-    } else {
-        Con_Printf("OQuake: No JSON config path stored\n");
     }
 }
 
@@ -972,7 +961,6 @@ static int OQ_ExtractJsonValue(const char *json, const char *key, char *value, i
 static int OQ_LoadJsonConfig(const char *json_path) {
     FILE *f = fopen(json_path, "r");
     if (!f) {
-        Con_Printf("OQuake: Failed to open JSON config: %s\n", json_path);
         return 0;
     }
     
@@ -980,7 +968,6 @@ static int OQ_LoadJsonConfig(const char *json_path) {
     size_t len = fread(json, 1, sizeof(json) - 1, f);
     fclose(f);
     if (len == 0) {
-        Con_Printf("OQuake: JSON config file is empty: %s\n", json_path);
         return 0;
     }
     json[len] = 0;
@@ -989,29 +976,16 @@ static int OQ_LoadJsonConfig(const char *json_path) {
     int loaded = 0;
     
     if (OQ_ExtractJsonValue(json, "star_api_url", value, sizeof(value))) {
-        Con_Printf("OQuake: Setting oquake_star_api_url from JSON: %s\n", value);
         Cvar_Set("oquake_star_api_url", value);
         loaded = 1;
-    } else {
-        Con_Printf("OQuake: Warning: star_api_url not found in JSON\n");
     }
     if (OQ_ExtractJsonValue(json, "oasis_api_url", value, sizeof(value))) {
-        Con_Printf("OQuake: Setting oquake_oasis_api_url from JSON: %s\n", value);
         Cvar_Set("oquake_oasis_api_url", value);
         loaded = 1;
-    } else {
-        Con_Printf("OQuake: Warning: oasis_api_url not found in JSON\n");
     }
     if (OQ_ExtractJsonValue(json, "beam_face", value, sizeof(value))) {
-        Con_Printf("OQuake: Setting oasis_star_beam_face from JSON: %s\n", value);
         Cvar_SetValueQuick(&oasis_star_beam_face, atoi(value));
         loaded = 1;
-    }
-    
-    if (loaded) {
-        Con_Printf("OQuake: JSON config loaded successfully from: %s\n", json_path);
-    } else {
-        Con_Printf("OQuake: Warning: No valid values found in JSON config\n");
     }
     
     return loaded;
@@ -1156,18 +1130,8 @@ void OQuake_STAR_Init(void) {
         int found_cfg = OQ_FindConfigFile("config.cfg", found_cfg_path, sizeof(found_cfg_path));
         int found_json = OQ_FindConfigFile("oasisstar.json", found_json_path, sizeof(found_json_path));
         
-        /* Debug output */
-        Con_Printf("OQuake: Config preference: %s\n", use_json ? "json" : "cfg");
-        if (found_json) {
-            Con_Printf("OQuake: Found JSON: %s\n", found_json_path);
-        } else {
-            Con_Printf("OQuake: JSON file not found\n");
-        }
-        if (found_cfg) {
-            Con_Printf("OQuake: Found config.cfg: %s\n", found_cfg_path);
-        } else {
-            Con_Printf("OQuake: config.cfg not found\n");
-        }
+        /* Show config preference */
+        Con_Printf("OQuake: Config preference: %s\n", use_json ? "oasisstar.json" : "config.cfg");
         
         /* If JSON not found but config.cfg exists, load config.cfg first to get values, then create JSON */
         if (!found_json && found_cfg && use_json) {
@@ -1226,7 +1190,15 @@ void OQuake_STAR_Init(void) {
                 }
                 fclose(f);
                 config_loaded = 1;
-                Con_Printf("OQuake: Loaded from config.cfg, creating JSON...\n");
+                Con_Printf("OQuake: Loaded config from: %s\n", found_cfg_path);
+                const char* star_url = oquake_star_api_url.string;
+                const char* oasis_url = oquake_oasis_api_url.string;
+                if (star_url && star_url[0]) {
+                    Con_Printf("OQuake: STAR API URL: %s\n", star_url);
+                }
+                if (oasis_url && oasis_url[0]) {
+                    Con_Printf("OQuake: OASIS API URL: %s\n", oasis_url);
+                }
                 
                 /* Now create JSON file in same directory */
                 q_strlcpy(found_json_path, found_cfg_path, sizeof(found_json_path));
@@ -1238,8 +1210,8 @@ void OQuake_STAR_Init(void) {
                     q_strlcpy(found_json_path, "oasisstar.json", sizeof(found_json_path));
                 }
                 if (OQ_SaveJsonConfig(found_json_path)) {
-                    Con_Printf("OQuake: Created JSON config: %s\n", found_json_path);
                     found_json = 1; /* Mark as found so we use it next time */
+                    Con_Printf("OQuake: Created JSON config: %s\n", found_json_path);
                 }
             }
         }
@@ -1247,10 +1219,17 @@ void OQuake_STAR_Init(void) {
         /* Load based on preference and availability */
         if (use_json && found_json) {
             /* Prefer JSON - load it */
-            Con_Printf("OQuake: Loading config from JSON: %s\n", found_json_path);
             if (OQ_LoadJsonConfig(found_json_path)) {
                 config_loaded = 1;
-                Con_Printf("OQuake: JSON config loaded successfully\n");
+                Con_Printf("OQuake: Loaded config from: %s\n", found_json_path);
+                const char* star_url = oquake_star_api_url.string;
+                const char* oasis_url = oquake_oasis_api_url.string;
+                if (star_url && star_url[0]) {
+                    Con_Printf("OQuake: STAR API URL: %s\n", star_url);
+                }
+                if (oasis_url && oasis_url[0]) {
+                    Con_Printf("OQuake: OASIS API URL: %s\n", oasis_url);
+                }
                 /* Sync to config.cfg if it exists */
                 if (found_cfg) {
                     OQ_SyncConfigFiles(found_cfg_path, found_json_path);
@@ -1260,7 +1239,6 @@ void OQuake_STAR_Init(void) {
             /* Prefer config.cfg - load it */
             FILE *f = fopen(found_cfg_path, "r");
             if (f) {
-                Con_Printf("OQuake: Loading config from: %s\n", found_cfg_path);
                 char line[256];
                 while (fgets(line, sizeof(line), f)) {
                     char *p = line;
@@ -1313,7 +1291,15 @@ void OQuake_STAR_Init(void) {
                 }
                 fclose(f);
                 config_loaded = 1;
-                Con_Printf("OQuake: Config file loaded successfully\n");
+                Con_Printf("OQuake: Loaded config from: %s\n", found_cfg_path);
+                const char* star_url = oquake_star_api_url.string;
+                const char* oasis_url = oquake_oasis_api_url.string;
+                if (star_url && star_url[0]) {
+                    Con_Printf("OQuake: STAR API URL: %s\n", star_url);
+                }
+                if (oasis_url && oasis_url[0]) {
+                    Con_Printf("OQuake: OASIS API URL: %s\n", oasis_url);
+                }
                 /* Sync to JSON if it exists */
                 if (found_json) {
                     OQ_SyncConfigFiles(found_cfg_path, found_json_path);
@@ -1321,16 +1307,22 @@ void OQuake_STAR_Init(void) {
             }
         } else if (found_json) {
             /* Fallback: use JSON if available */
-            Con_Printf("OQuake: Loading config from JSON (fallback): %s\n", found_json_path);
             if (OQ_LoadJsonConfig(found_json_path)) {
                 config_loaded = 1;
-                Con_Printf("OQuake: JSON config loaded successfully\n");
+                Con_Printf("OQuake: Loaded config from (fallback): %s\n", found_json_path);
+                const char* star_url = oquake_star_api_url.string;
+                const char* oasis_url = oquake_oasis_api_url.string;
+                if (star_url && star_url[0]) {
+                    Con_Printf("OQuake: STAR API URL: %s\n", star_url);
+                }
+                if (oasis_url && oasis_url[0]) {
+                    Con_Printf("OQuake: OASIS API URL: %s\n", oasis_url);
+                }
             }
         } else if (found_cfg) {
             /* Fallback: use config.cfg if available */
             FILE *f = fopen(found_cfg_path, "r");
             if (f) {
-                Con_Printf("OQuake: Loading config from: %s (fallback)\n", found_cfg_path);
                 char line[256];
                 while (fgets(line, sizeof(line), f)) {
                     char *p = line;
@@ -1383,7 +1375,15 @@ void OQuake_STAR_Init(void) {
                 }
                 fclose(f);
                 config_loaded = 1;
-                Con_Printf("OQuake: Config file loaded successfully\n");
+                Con_Printf("OQuake: Loaded config from (fallback): %s\n", found_cfg_path);
+                const char* star_url = oquake_star_api_url.string;
+                const char* oasis_url = oquake_oasis_api_url.string;
+                if (star_url && star_url[0]) {
+                    Con_Printf("OQuake: STAR API URL: %s\n", star_url);
+                }
+                if (oasis_url && oasis_url[0]) {
+                    Con_Printf("OQuake: OASIS API URL: %s\n", oasis_url);
+                }
                 /* Create JSON file from config.cfg if JSON doesn't exist */
                 if (!found_json && found_json_path[0]) {
                     if (OQ_SaveJsonConfig(found_json_path)) {
@@ -1426,6 +1426,7 @@ void OQuake_STAR_Init(void) {
                 Con_Printf("OQuake: Created default JSON config: %s\n", default_json);
                 if (OQ_LoadJsonConfig(default_json)) {
                     config_loaded = 1;
+                    Con_Printf("OQuake: Loaded default config from: %s\n", default_json);
                 }
             }
         }
@@ -1443,7 +1444,6 @@ void OQuake_STAR_Init(void) {
         if (use_json && g_json_config_path[0]) {
             extern void Cbuf_AddText(const char *text);
             Cbuf_AddText("wait 0.5; oasis_reload_config\n");
-            Con_Printf("OQuake: Queued delayed JSON reload to prevent Quake exec from overwriting\n");
         }
     }
 
