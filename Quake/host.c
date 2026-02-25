@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // host.c -- coordinates spawning and killing of local servers
 
 #include "quakedef.h"
+#include "oquake_version.h"
+#include "oquake_star_integration.h"
 #include "bgmusic.h"
 #include "tasks.h"
 #include <setjmp.h>
@@ -89,7 +91,7 @@ cvar_t autofastload = {"autofastload", "0", CVAR_ARCHIVE};
 
 cvar_t developer = {"developer", "0", CVAR_NONE};
 
-static cvar_t pr_engine = {"pr_engine", ENGINE_NAME_AND_VER, CVAR_NONE};
+static cvar_t pr_engine = {"pr_engine", OQUAKE_VERSION_STR " (" ENGINE_NAME_AND_VER ")", CVAR_NONE};
 cvar_t		  temp1 = {"temp1", "0", CVAR_NONE};
 
 cvar_t devstats = {"devstats", "0", CVAR_NONE}; // johnfitz -- track developer statistics that vary every frame
@@ -970,6 +972,7 @@ void _Host_Frame (double time)
 	// fetch results from server
 	if (cls.state == ca_connected)
 		CL_ReadFromServer ();
+		OQuake_STAR_PollItems ();
 
 	// update video
 	if (host_speeds.value)
@@ -1082,6 +1085,7 @@ void Host_Init (void)
 		Con_Init ();
 	}
 	PR_Init ();
+	OQuake_STAR_Init ();
 	Mod_Init ();
 	NET_Init ();
 	SV_Init ();
@@ -1165,6 +1169,8 @@ void Host_Shutdown (void)
 	scr_disabled_for_loading = true;
 
 	Host_WriteConfiguration ();
+
+	OQuake_STAR_Cleanup ();
 
 	NET_Shutdown ();
 

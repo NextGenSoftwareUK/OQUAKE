@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
-
+#include "oquake_star_integration.h"
 #include "cfgfile.h"
 
 #include <setjmp.h>
@@ -1154,6 +1154,8 @@ static void SCR_DrawGUI (void *unused)
 		SCR_DrawPause (cbx);
 		SCR_CheckDrawCenterString (cbx);
 		Sbar_Draw (cbx);
+		OQuake_STAR_DrawBeamedInStatus (cbx);
+		OQuake_STAR_DrawInventoryOverlay (cbx);
 		SCR_DrawDevStats (cbx); // johnfitz
 		SCR_DrawFPS (cbx);		// johnfitz
 		SCR_DrawClock (cbx);	// johnfitz
