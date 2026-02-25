@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sbar.c -- status bar code
 
 #include "quakedef.h"
+#include "oquake_star_integration.h"
 
 #define STAT_MINUS 10 // num frame for '-' stats digit
 
@@ -43,6 +44,7 @@ static qpic_t *sb_face_invis;
 static qpic_t *sb_face_quad;
 static qpic_t *sb_face_invuln;
 static qpic_t *sb_face_invis_invuln;
+static qpic_t *sb_face_anorak; /* OQuake: beamed-in face (gfx/face_anorak.png or .lmp) */
 
 qboolean sb_showscores;
 
@@ -800,6 +802,12 @@ void Sbar_DrawFace (cb_context_t *cbx, int x, int y, qboolean classic_style)
 	}
 	// PGM 01/19/97 - team color drawing
 
+	/* OQuake: when beamed in as anorak/avatar and beam face is on, show anorak face */
+	if (OQuake_STAR_ShouldUseAnorakFace () && sb_face_anorak)
+	{
+		Sbar_DrawPic (cbx, x, y, sb_face_anorak);
+		return;
+	}
 	if ((cl.items & (IT_INVISIBILITY | IT_INVULNERABILITY)) == (IT_INVISIBILITY | IT_INVULNERABILITY))
 	{
 		Sbar_DrawPic (cbx, x, y, sb_face_invis_invuln);
