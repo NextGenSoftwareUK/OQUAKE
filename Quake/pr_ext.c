@@ -35,6 +35,7 @@ extern void PF_sv_walkpathtogoal (void);
 extern void PF_sv_localsound (void);
 extern void PF_OQuake_OnKeyPickup (void);
 extern void PF_OQuake_CheckDoorAccess (void);
+extern void PF_OQuake_OnBossKilled (void);
 
 static float PR_GetVMScale (void)
 {
@@ -5243,6 +5244,7 @@ static struct
 	/* OQuake OASIS STAR API - cross-game keys with ODOOM */
 	{"ex_OQuake_OnKeyPickup",		PF_OQuake_OnKeyPickup,			PF_NoCSQC,						0,		"void(string keyname)"},
 	{"ex_OQuake_CheckDoorAccess",	PF_OQuake_CheckDoorAccess,		PF_NoCSQC,						0,		"float(string doorname, string requiredkey)"},
+	{"ex_OQuake_OnBossKilled",		PF_OQuake_OnBossKilled,			PF_NoCSQC,						0,		"void(string bossname)"},
 };
 // clang-format on
 
