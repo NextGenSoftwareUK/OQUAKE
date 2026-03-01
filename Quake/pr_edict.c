@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#include "oquake_star_integration.h"
+
 const int type_size[NUM_TYPE_SIZES] = {
 	1, // ev_void
 	1, // sizeof(string_t) / 4		// ev_string
@@ -1406,6 +1408,12 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 	}
 
 	if (!init)
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 		ED_Free (ent);
 
 	return data;
@@ -1456,6 +1464,12 @@ void ED_LoadFromFile (const char *data)
 		{
 			if (((int)ent->v.spawnflags & SPAWNFLAG_NOT_DEATHMATCH))
 			{
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 				ED_Free (ent);
 				inhibit++;
 				continue;
@@ -1465,6 +1479,12 @@ void ED_LoadFromFile (const char *data)
 			(current_skill == 0 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_EASY)) || (current_skill == 1 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
 			(current_skill >= 2 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_HARD)))
 		{
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 			ED_Free (ent);
 			inhibit++;
 			continue;
@@ -1477,6 +1497,12 @@ void ED_LoadFromFile (const char *data)
 		{
 			Con_SafePrintf ("No classname for:\n"); // johnfitz -- was Con_Printf
 			ED_Print (ent);
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 			ED_Free (ent);
 			continue;
 		}
@@ -1485,6 +1511,12 @@ void ED_LoadFromFile (const char *data)
 
 		if (sv.nomonsters && !strncmp (classname, "monster_", 8))
 		{
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 			ED_Free (ent);
 			inhibit++;
 			continue;
@@ -1509,6 +1541,12 @@ void ED_LoadFromFile (const char *data)
 			{
 				Con_SafePrintf ("No spawn function for:\n"); // johnfitz -- was Con_Printf
 				ED_Print (ent);
+	{
+		const char *cls = PR_GetString(ent->v.classname);
+		if (cls && strncmp(cls, "monster_", 8) == 0)
+			OQuake_STAR_OnMonsterKilled(cls);
+	}
+
 				ED_Free (ent);
 			}
 			continue;
