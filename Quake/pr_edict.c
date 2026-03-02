@@ -1407,7 +1407,11 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 			Host_Error ("ED_ParseEdict: parse error");
 	}
 
-	if (!init)		ED_Free (ent);
+	if (!init)
+#ifdef OASIS_STAR_API
+		OQuake_STAR_OnEntityFreed(ent);
+#endif
+		ED_Free (ent);
 
 	return data;
 }
@@ -1456,7 +1460,11 @@ void ED_LoadFromFile (const char *data)
 		if (deathmatch.value)
 		{
 			if (((int)ent->v.spawnflags & SPAWNFLAG_NOT_DEATHMATCH))
-			{				ED_Free (ent);
+			{
+#ifdef OASIS_STAR_API
+				OQuake_STAR_OnEntityFreed(ent);
+#endif
+				ED_Free (ent);
 				inhibit++;
 				continue;
 			}
@@ -1464,7 +1472,11 @@ void ED_LoadFromFile (const char *data)
 		else if (
 			(current_skill == 0 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_EASY)) || (current_skill == 1 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
 			(current_skill >= 2 && ((int)ent->v.spawnflags & SPAWNFLAG_NOT_HARD)))
-		{			ED_Free (ent);
+		{
+#ifdef OASIS_STAR_API
+			OQuake_STAR_OnEntityFreed(ent);
+#endif
+			ED_Free (ent);
 			inhibit++;
 			continue;
 		}
@@ -1475,14 +1487,22 @@ void ED_LoadFromFile (const char *data)
 		if (!ent->v.classname)
 		{
 			Con_SafePrintf ("No classname for:\n"); // johnfitz -- was Con_Printf
-			ED_Print (ent);			ED_Free (ent);
+			ED_Print (ent);
+#ifdef OASIS_STAR_API
+			OQuake_STAR_OnEntityFreed(ent);
+#endif
+			ED_Free (ent);
 			continue;
 		}
 
 		const char *classname = PR_GetString (ent->v.classname);
 
 		if (sv.nomonsters && !strncmp (classname, "monster_", 8))
-		{			ED_Free (ent);
+		{
+#ifdef OASIS_STAR_API
+			OQuake_STAR_OnEntityFreed(ent);
+#endif
+			ED_Free (ent);
 			inhibit++;
 			continue;
 		}
@@ -1505,7 +1525,11 @@ void ED_LoadFromFile (const char *data)
 			else
 			{
 				Con_SafePrintf ("No spawn function for:\n"); // johnfitz -- was Con_Printf
-				ED_Print (ent);				ED_Free (ent);
+				ED_Print (ent);
+#ifdef OASIS_STAR_API
+				OQuake_STAR_OnEntityFreed(ent);
+#endif
+				ED_Free (ent);
 			}
 			continue;
 		}
