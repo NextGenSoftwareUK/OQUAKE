@@ -1594,7 +1594,16 @@ sizebuf_t *WriteDest (void)
 
 static void PF_sv_WriteByte (void)
 {
-	MSG_WriteByte (WriteDest (), G_FLOAT (OFS_PARM1));
+	float byteval = G_FLOAT (OFS_PARM1);
+	/* When QuakeC Killed() does WriteByte(MSG_ALL, SVC_KILLEDMONSTER), self is the dead monster. Hook here so we see all monster kills regardless of remove/makestatic path. */
+	if ((int)byteval == svc_killedmonster)
+	{
+		edict_t *dead = PROG_TO_EDICT (pr_global_struct->self);
+		const char *classname = dead ? PR_GetString (dead->v.classname) : NULL;
+		if (classname && classname[0])
+			OQuake_STAR_OnMonsterKilled (classname);
+	}
+	MSG_WriteByte (WriteDest (), byteval);
 }
 
 static void PF_sv_WriteChar (void)
