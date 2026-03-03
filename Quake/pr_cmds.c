@@ -1053,6 +1053,7 @@ static void PF_Remove (void)
 	edict_t *ed;
 
 	ed = G_EDICT (OFS_PARM0);
+	OQuake_STAR_OnEntityFreed(ed);  /* catch monster kills when progs call remove(self) instead of makestatic */
 	ED_Free (ed);
 }
 
