@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "oquake_star_integration.h"
 
 // #define	STRINGTEMP_BUFFERS		16
 // #define	STRINGTEMP_LENGTH		1024
@@ -1659,6 +1660,7 @@ static void PF_sv_makestatic (void)
 		sv.num_statics++;
 
 	// throw the entity away now
+	OQuake_STAR_OnEntityFreed(ent);
 	ED_Free (ent);
 }
 
