@@ -23,8 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#include "oquake_star_integration.h"
-
 const int type_size[NUM_TYPE_SIZES] = {
 	1, // ev_void
 	1, // sizeof(string_t) / 4		// ev_string
@@ -123,8 +121,6 @@ FIXME: walk all entities and NULL out references to this entity
 */
 void ED_Free (edict_t *ed)
 {
-	OQuake_STAR_OnEntityFreed(ed);
-
 	if (ed->free)
 	{
 		// Assert that this isn't linked to any area
