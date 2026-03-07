@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_phys.c
 
 #include "quakedef.h"
+#include "oquake_star_integration.h"
 
 /*
 
@@ -190,14 +191,20 @@ static void SV_Impact (edict_t *e1, edict_t *e2)
 	{
 		pr_global_struct->self = EDICT_TO_PROG (e1);
 		pr_global_struct->other = EDICT_TO_PROG (e2);
-		PR_ExecuteProgram (e1->v.touch);
+		if (OQuake_STAR_InterceptTouchPickupAtMax (e1, e2))
+	ED_Free (e1);
+else
+	PR_ExecuteProgram (e1->v.touch);
 	}
 
 	if (e2->v.touch && e2->v.solid != SOLID_NOT)
 	{
 		pr_global_struct->self = EDICT_TO_PROG (e2);
 		pr_global_struct->other = EDICT_TO_PROG (e1);
-		PR_ExecuteProgram (e2->v.touch);
+		if (OQuake_STAR_InterceptTouchPickupAtMax (e2, e1))
+	ED_Free (e2);
+else
+	PR_ExecuteProgram (e2->v.touch);
 	}
 
 	pr_global_struct->self = old_self;
