@@ -35,6 +35,7 @@ star_api_result_t star_api_send_item_to_clan(const char* clan_name_or_target, co
 /* Forward declare callbacks so they can be used before their definitions. */
 static void OQ_OnSendItemDone(void* user_data);
 static void OQ_PickupLog(const char* fmt, ...);
+static void OQ_StarDebugLog(const char* fmt, ...);
 static qboolean g_star_debug_logging = false;
 
 /** Case-insensitive substring search. Defined early so MSVC parses call sites without error. */
@@ -661,9 +662,11 @@ static void OQ_OnUseItemFromOverlayDone(void* user_data) {
     (void)user_data;
     if (!star_sync_use_item_get_result(&success, err_buf, sizeof(err_buf)))
         return;
+    OQ_StarDebugLog("UseItem callback: success=%d name='%s' err='%s'", success, g_oq_use_pending_name, err_buf[0] ? err_buf : "(none)");
     if (success && g_oq_use_pending_name[0] != '\0') {
         OQ_ApplyHealthOrArmor(g_oq_use_pending_name, g_oq_use_pending_type, g_oq_use_pending_description);
         q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Used item: %s", g_oq_use_pending_name);
+        OQ_StarDebugLog("UseItem: applied to player, refreshing overlay");
     } else if (!success && err_buf[0])
         q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Use failed: %s", err_buf);
     g_oq_use_pending_name[0] = '\0';
@@ -704,11 +707,13 @@ static void OQ_UseSelectedItem(void)
     }
     if (star_sync_use_item_in_progress()) {
         q_strlcpy(g_inventory_status, "Use in progress...", sizeof(g_inventory_status));
+        OQ_StarDebugLog("UseItem (E key): blocked (use already in progress)");
         return;
     }
     q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
     q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
     q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    OQ_StarDebugLog("UseItem (E key): starting async name='%s' type='%s' context=inventory_overlay", item->name, item->item_type ? item->item_type : "");
     star_sync_use_item_start(item->name, "inventory_overlay", OQ_OnUseItemFromOverlayDone, NULL);
     q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Using: %s...", item->name);
 }
@@ -740,36 +745,42 @@ static const oquake_inventory_entry_t* OQ_FindFirstArmorEntry(void) {
 
 static void OQ_UseHealth_f(void) {
     const char* toast_msg = NULL;
-    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); return; }
-    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); return; }
+    OQ_StarDebugLog("UseHealth (C key): invoked");
+    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); OQ_StarDebugLog("UseHealth: skip (not initialized)"); return; }
+    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); OQ_StarDebugLog("UseHealth: skip (use in progress)"); return; }
     OQ_RefreshOverlayFromClient();
     const oquake_inventory_entry_t* item = OQ_FindFirstHealthEntry();
-    if (!item) { Con_Printf("No health item in STAR inventory.\n"); return; }
+    if (!item) { Con_Printf("No health item in STAR inventory.\n"); OQ_StarDebugLog("UseHealth: no health item found (g_inventory_count=%d)", g_inventory_count); return; }
     if (OQ_WouldUseExceedMax(item->name, item->item_type, item->description, &toast_msg)) {
         Con_Printf("%s\n", toast_msg ? toast_msg : "Already at max health.");
+        OQ_StarDebugLog("UseHealth: blocked (would exceed max) msg='%s'", toast_msg ? toast_msg : "");
         return;
     }
     q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
     q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
     q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    OQ_StarDebugLog("UseHealth: starting async name='%s' context=oquake_use_health", item->name);
     star_sync_use_item_start(item->name, "oquake_use_health", OQ_OnUseItemFromOverlayDone, NULL);
     Con_Printf("Using: %s...\n", item->name);
 }
 
 static void OQ_UseArmor_f(void) {
     const char* toast_msg = NULL;
-    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); return; }
-    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); return; }
+    OQ_StarDebugLog("UseArmor (F key): invoked");
+    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); OQ_StarDebugLog("UseArmor: skip (not initialized)"); return; }
+    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); OQ_StarDebugLog("UseArmor: skip (use in progress)"); return; }
     OQ_RefreshOverlayFromClient();
     const oquake_inventory_entry_t* item = OQ_FindFirstArmorEntry();
-    if (!item) { Con_Printf("No armor item in STAR inventory.\n"); return; }
+    if (!item) { Con_Printf("No armor item in STAR inventory.\n"); OQ_StarDebugLog("UseArmor: no armor item found (g_inventory_count=%d)", g_inventory_count); return; }
     if (OQ_WouldUseExceedMax(item->name, item->item_type, item->description, &toast_msg)) {
         Con_Printf("%s\n", toast_msg ? toast_msg : "Already at max armor.");
+        OQ_StarDebugLog("UseArmor: blocked (would exceed max) msg='%s'", toast_msg ? toast_msg : "");
         return;
     }
     q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
     q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
     q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    OQ_StarDebugLog("UseArmor: starting async name='%s' context=oquake_use_armor", item->name);
     star_sync_use_item_start(item->name, "oquake_use_armor", OQ_OnUseItemFromOverlayDone, NULL);
     Con_Printf("Using: %s...\n", item->name);
 }
@@ -2589,6 +2600,18 @@ static void OQ_PickupLog(const char* fmt, ...) {
     }
 }
 
+/** Log to console and star_api.log only when star debug is on. Use for use-item, C/F keys, config, and general STAR flow tracking. */
+static void OQ_StarDebugLog(const char* fmt, ...) {
+    char buf[512];
+    va_list ap;
+    if (!g_star_debug_logging) return;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    Con_Printf("[STAR debug] %s\n", buf);
+    star_api_log_to_file(buf);
+}
+
 /**
  * Call from engine before invoking the touch function for (item_ent, player_edict).
  * Same logic as original working OQuake: exact strcmp on classname (id1 progs use item_health, item_armor1, item_armor2, item_armorInv).
@@ -2663,74 +2686,92 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
                classname, player_health, max_h, player_armor, max_a, always_add, allow_pickup_if_max, first_edict_is_item);
     OQ_PickupLog("%s", log_buf);
     /* Only intercept (return 1) when we are in the item's touch block (e1=item). When e1=player we must return 0 or engine would ED_Free(player). */
-    if (!first_edict_is_item)
+    if (!first_edict_is_item) {
+        OQ_StarDebugLog("InterceptTouch: skip (e1=player) -> ret=0 (wait for item's touch call)");
         return 0;
+    }
     /* Health: item_health (25), item_health_mega / item_health_super (100). use_health_on_pickup: 0=below max->inventory only; 1=standard. */
     if (OQ_StrEqNoCase(classname, "item_health")) {
         int use_health = (oquake_star_use_health_on_pickup.string && atoi(oquake_star_use_health_on_pickup.string)) ? 1 : 0;
+        OQ_StarDebugLog("InterceptTouch: item_health use_health=%d", use_health);
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Health", "Health", 1, "Health (+25)");
-            if (player_health >= max_h) return 1;
+            if (player_health >= max_h) { OQ_StarDebugLog("InterceptTouch: item_health always_add at_max -> ret=1"); return 1; }
+            OQ_StarDebugLog("InterceptTouch: item_health always_add below_max use_health=%d -> ret=%d", use_health, use_health ? 0 : 1);
             return use_health ? 0 : 1;  /* below max: use_health 0 -> intercept only; 1 -> let engine use */
         }
         if (player_health >= max_h) {
-            if (!allow_pickup_if_max) return 0;
+            if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: item_health at_max !allow -> ret=0"); return 0; }
             OQuake_STAR_OnPickupLeftOnFloor("Health", "Health", 1, "Health (+25)");
+            OQ_StarDebugLog("InterceptTouch: item_health at_max allow -> ret=1");
             return 1;
         }
         /* Below max: use_health 0 -> inventory only (intercept); 1 -> let engine use */
         if (!use_health) {
             OQuake_STAR_OnPickupLeftOnFloor("Health", "Health", 1, "Health (+25)");
+            OQ_StarDebugLog("InterceptTouch: item_health below_max !use_health -> ret=1");
             return 1;
         }
+        OQ_StarDebugLog("InterceptTouch: item_health below_max use_health -> ret=0");
         return 0;
     }
     if (OQ_StrEqNoCase(classname, "item_health_mega") || OQ_StrEqNoCase(classname, "item_health_super")) {
         int use_powerup = (oquake_star_use_powerup_on_pickup.string && atoi(oquake_star_use_powerup_on_pickup.string)) ? 1 : 0;
+        OQ_StarDebugLog("InterceptTouch: megahealth use_powerup=%d", use_powerup);
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
-            if (player_health >= max_h) return 1;
+            if (player_health >= max_h) { OQ_StarDebugLog("InterceptTouch: megahealth always_add at_max -> ret=1"); return 1; }
+            OQ_StarDebugLog("InterceptTouch: megahealth always_add below_max -> ret=%d", use_powerup ? 0 : 1);
             return use_powerup ? 0 : 1;
         }
         if (player_health >= max_h) {
-            if (!allow_pickup_if_max) return 0;
+            if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: megahealth at_max !allow -> ret=0"); return 0; }
             OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
+            OQ_StarDebugLog("InterceptTouch: megahealth at_max allow -> ret=1");
             return 1;
         }
         if (!use_powerup) {
             OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
+            OQ_StarDebugLog("InterceptTouch: megahealth below_max !use_powerup -> ret=1");
             return 1;
         }
+        OQ_StarDebugLog("InterceptTouch: megahealth below_max use_powerup -> ret=0");
         return 0;
     }
     /* Armor: item_armor1 (green +100), item_armor2 (yellow +150), item_armorInv (red +200). use_armor_on_pickup: 0=below max->inventory only; 1=standard. */
     if (OQ_StrEqNoCase(classname, "item_armor1")) {
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
+        OQ_StarDebugLog("InterceptTouch: item_armor1 use_armor=%d", use_armor);
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Green Armor", "Armor", 1, "Green Armor (+100)");
-            if (player_armor >= max_a) return 1;
+            if (player_armor >= max_a) { OQ_StarDebugLog("InterceptTouch: item_armor1 always_add at_max -> ret=1"); return 1; }
+            OQ_StarDebugLog("InterceptTouch: item_armor1 always_add below_max -> ret=%d", use_armor ? 0 : 1);
             return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
-            if (!allow_pickup_if_max) return 0;
+            if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: item_armor1 at_max !allow -> ret=0"); return 0; }
             OQuake_STAR_OnPickupLeftOnFloor("Green Armor", "Armor", 1, "Green Armor (+100)");
+            OQ_StarDebugLog("InterceptTouch: item_armor1 at_max allow -> ret=1");
             return 1;
         }
         if (!use_armor) {
             OQuake_STAR_OnPickupLeftOnFloor("Green Armor", "Armor", 1, "Green Armor (+100)");
+            OQ_StarDebugLog("InterceptTouch: item_armor1 below_max !use_armor -> ret=1");
             return 1;
         }
+        OQ_StarDebugLog("InterceptTouch: item_armor1 below_max use_armor -> ret=0");
         return 0;
     }
     if (OQ_StrEqNoCase(classname, "item_armor2")) {
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
+        OQ_StarDebugLog("InterceptTouch: item_armor2 use_armor=%d", use_armor);
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Yellow Armor", "Armor", 1, "Yellow Armor (+150)");
-            if (player_armor >= max_a) return 1;
+            if (player_armor >= max_a) { OQ_StarDebugLog("InterceptTouch: item_armor2 always_add at_max -> ret=1"); return 1; }
             return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
-            if (!allow_pickup_if_max) return 0;
+            if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: item_armor2 at_max !allow -> ret=0"); return 0; }
             OQuake_STAR_OnPickupLeftOnFloor("Yellow Armor", "Armor", 1, "Yellow Armor (+150)");
             return 1;
         }
@@ -2742,13 +2783,14 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
     }
     if (OQ_StrEqNoCase(classname, "item_armorInv") || OQ_StrEqNoCase(classname, "item_armor_inv")) {
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
+        OQ_StarDebugLog("InterceptTouch: item_armorInv use_armor=%d", use_armor);
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Red Armor", "Armor", 1, "Red Armor (+200)");
-            if (player_armor >= max_a) return 1;
+            if (player_armor >= max_a) { OQ_StarDebugLog("InterceptTouch: item_armorInv always_add at_max -> ret=1"); return 1; }
             return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
-            if (!allow_pickup_if_max) return 0;
+            if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: item_armorInv at_max !allow -> ret=0"); return 0; }
             OQuake_STAR_OnPickupLeftOnFloor("Red Armor", "Armor", 1, "Red Armor (+200)");
             return 1;
         }
@@ -2804,8 +2846,7 @@ void OQuake_STAR_OnPickupLeftOnFloor(const char* item_name, const char* item_typ
             return;
     }
     q_snprintf(log_msg, sizeof(log_msg), "OQUAKE: OnPickupLeftOnFloor called: name=%s type=%s qty=%d", item_name ? item_name : "(null)", item_type ? item_type : "(null)", qty);
-    Con_Printf("[OQuake pickup] %s\n", log_msg);
-    star_api_log_to_file(log_msg);
+    OQ_StarDebugLog("%s", log_msg);
     if (optional_description && optional_description[0])
         q_strlcpy(desc, optional_description, sizeof(desc));
     else
@@ -3209,7 +3250,15 @@ void OQuake_STAR_Console_f(void) {
             Con_Printf("Usage: star debug on|off|status\n");
             return;
         }
-        if (strcmp(Cmd_Argv(2), "on") == 0) { g_star_debug_logging = true; Con_Printf("STAR debug logging enabled.\n"); return; }
+        if (strcmp(Cmd_Argv(2), "on") == 0) {
+            g_star_debug_logging = true;
+            Con_Printf("STAR debug logging enabled. Check console and star_api.log (in id1 or exe dir).\n");
+            OQ_StarDebugLog("STAR debug ON | max_health=%s max_armor=%s always_add=%s allow_pickup_if_max=%s use_health_on_pickup=%s use_armor_on_pickup=%s use_powerup_on_pickup=%s",
+                oquake_star_max_health.string, oquake_star_max_armor.string,
+                oquake_star_always_add_items_to_inventory.string, oquake_star_always_allow_pickup_if_max.string,
+                oquake_star_use_health_on_pickup.string, oquake_star_use_armor_on_pickup.string, oquake_star_use_powerup_on_pickup.string);
+            return;
+        }
         if (strcmp(Cmd_Argv(2), "off") == 0) { g_star_debug_logging = false; Con_Printf("STAR debug logging disabled.\n"); return; }
         Con_Printf("Unknown debug option: %s. Use on|off|status.\n", Cmd_Argv(2));
         return;
