@@ -218,11 +218,18 @@ static char g_inventory_saved_down_bind[128];
 static char g_inventory_saved_left_bind[128];
 static char g_inventory_saved_right_bind[128];
 static char g_inventory_saved_all_binds[MAX_KEYS][128];
+/* Pending use-item from overlay (E key): applied in callback after async use completes so inventory refresh shows correct qty/removal. */
+static char g_oq_use_pending_name[256];
+static char g_oq_use_pending_type[64];
+static char g_oq_use_pending_description[512];
 static int star_initialized(void);
 static int OQ_ItemMatchesTab(const oquake_inventory_entry_t* item, int tab);
 static void OQ_RefreshInventoryCache(void);
 static void OQ_RefreshOverlayFromClient(void);
 static void OQ_ClampSelection(int filtered_count);
+static void OQ_OnUseItemFromOverlayDone(void* user_data);
+static void OQ_UseHealth_f(void);
+static void OQ_UseArmor_f(void);
 static void OQ_ApplyBeamFacePreference(void);
 
 enum {
@@ -316,6 +323,43 @@ static qboolean OQ_StackPowerups(void) { return atoi(oquake_star_stack_powerups.
 static qboolean OQ_StackKeys(void)     { return atoi(oquake_star_stack_keys.string) != 0; }
 static qboolean OQ_StackSigils(void)   { return atoi(oquake_star_stack_sigils.string) != 0; }
 
+/** If description contains "(+N)", add " +N" to label BEFORE " (OQUAKE)" or " (ODOOM)" so result is e.g. "Green Armor +100 (OQUAKE)". */
+static void OQ_AppendAmountFromDescription(char* label, size_t label_size, const char* description) {
+    const char* p;
+    char buf[32];
+    int n;
+    size_t len, pos, rest_len;
+    char* tag;
+    if (!label || label_size < 4 || !description || !description[0])
+        return;
+    p = strstr(description, "(+");
+    if (!p || p[2] == '\0' || p[2] == ')')
+        return;
+    for (n = 0, p += 2; *p >= '0' && *p <= '9' && n < 10; p++)
+        buf[n++] = *p;
+    if (n == 0 || *p != ')')
+        return;
+    buf[n] = '\0';
+    len = strlen(label);
+    /* Insert " +N" before " (OQUAKE)" or " (ODOOM)" if already in label; otherwise append at end. */
+    tag = strstr(label, " (OQUAKE)");
+    if (!tag) tag = strstr(label, " (ODOOM)");
+    if (tag) {
+        pos = (size_t)(tag - label);
+        rest_len = strlen(tag);
+        if (len + 2 + (size_t)n + rest_len < label_size) {
+            memmove(label + pos + 2 + (size_t)n, label + pos, rest_len + 1);
+            label[pos] = ' ';
+            label[pos + 1] = '+';
+            memcpy(label + pos + 2, buf, (size_t)n);
+        }
+    } else {
+        if (len + 2 + (size_t)n >= label_size)
+            return;
+        q_snprintf(label + len, label_size - len, " +%s", buf);
+    }
+}
+
 static void OQ_AppendGameSourceTag(const oquake_inventory_entry_t* item, char* label, size_t label_size)
 {
     const char* gs;
@@ -355,6 +399,7 @@ static void OQ_GetGroupedDisplayInfo(const oquake_inventory_entry_t* item, char*
             q_snprintf(label, label_size, "[NFT] %s", item->name);
         else
             q_strlcpy(label, item->name, label_size);
+        OQ_AppendAmountFromDescription(label, label_size, item->description);
         OQ_AppendGameSourceTag(item, label, label_size);
     }
     if (mode) *mode = OQ_IsStackableType(item->name) ? OQ_GROUP_MODE_SUM : OQ_GROUP_MODE_COUNT;
@@ -382,6 +427,7 @@ static int OQ_BuildGroupedRows(
             q_snprintf(out_labels[group_count], OQ_GROUP_LABEL_MAX, "[NFT] %s", ent->name);
         else
             q_strlcpy(out_labels[group_count], ent->name, OQ_GROUP_LABEL_MAX);
+        OQ_AppendAmountFromDescription(out_labels[group_count], OQ_GROUP_LABEL_MAX, ent->description);
         OQ_AppendGameSourceTag(ent, out_labels[group_count], OQ_GROUP_LABEL_MAX);
         out_modes[group_count] = OQ_IsStackableType(ent->name) ? OQ_GROUP_MODE_SUM : OQ_GROUP_MODE_COUNT;
         out_values[group_count] = display_qty;
@@ -608,6 +654,25 @@ static void OQ_ApplyHealthOrArmor(const char* name, const char* type, const char
     }
 }
 
+/** Called from main thread by star_sync_pump() when use-item from overlay (E key) completes. Apply health/armor and refresh so qty/removal is correct (like ODOOM). */
+static void OQ_OnUseItemFromOverlayDone(void* user_data) {
+    int success = 0;
+    char err_buf[384] = {0};
+    (void)user_data;
+    if (!star_sync_use_item_get_result(&success, err_buf, sizeof(err_buf)))
+        return;
+    if (success && g_oq_use_pending_name[0] != '\0') {
+        OQ_ApplyHealthOrArmor(g_oq_use_pending_name, g_oq_use_pending_type, g_oq_use_pending_description);
+        q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Used item: %s", g_oq_use_pending_name);
+    } else if (!success && err_buf[0])
+        q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Use failed: %s", err_buf);
+    g_oq_use_pending_name[0] = '\0';
+    g_oq_use_pending_type[0] = '\0';
+    g_oq_use_pending_description[0] = '\0';
+    if (success)
+        OQ_RefreshOverlayFromClient();
+}
+
 static void OQ_UseSelectedItem(void)
 {
     const char* toast_msg = NULL;
@@ -637,14 +702,76 @@ static void OQ_UseSelectedItem(void)
             q_strlcpy(g_inventory_status, toast_msg, sizeof(g_inventory_status));
         return;
     }
-    star_api_queue_use_item(item->name, "inventory_overlay");
-    if (star_api_flush_use_item_jobs() == STAR_API_SUCCESS) {
-        OQ_ApplyHealthOrArmor(item->name, item->item_type, item->description);
-        q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Used item: %s", item->name);
-        OQ_RefreshOverlayFromClient();
-    } else {
-        q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Use failed: %s", star_api_get_last_error());
+    if (star_sync_use_item_in_progress()) {
+        q_strlcpy(g_inventory_status, "Use in progress...", sizeof(g_inventory_status));
+        return;
     }
+    q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
+    q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
+    q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    star_sync_use_item_start(item->name, "inventory_overlay", OQ_OnUseItemFromOverlayDone, NULL);
+    q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Using: %s...", item->name);
+}
+
+/** First health item in g_inventory_entries (Health or Megahealth). Returns NULL if none. */
+static const oquake_inventory_entry_t* OQ_FindFirstHealthEntry(void) {
+    int i;
+    for (i = 0; i < g_inventory_count; i++) {
+        const oquake_inventory_entry_t* e = &g_inventory_entries[i];
+        if (OQ_ItemMatchesTab(e, OQ_TAB_POWERUPS) && e->name && (OQ_ContainsNoCase(e->name, "Megahealth") || OQ_ContainsNoCase(e->name, "Health")))
+            return e;
+        if (e->item_type && OQ_ContainsNoCase(e->item_type, "health"))
+            return e;
+        if (e->name && OQ_ContainsNoCase(e->name, "Health") && !OQ_ItemMatchesTab(e, OQ_TAB_ARMOR))
+            return e;
+    }
+    return NULL;
+}
+
+/** First armor item in g_inventory_entries. Returns NULL if none. */
+static const oquake_inventory_entry_t* OQ_FindFirstArmorEntry(void) {
+    int i;
+    for (i = 0; i < g_inventory_count; i++) {
+        if (OQ_ItemMatchesTab(&g_inventory_entries[i], OQ_TAB_ARMOR))
+            return &g_inventory_entries[i];
+    }
+    return NULL;
+}
+
+static void OQ_UseHealth_f(void) {
+    const char* toast_msg = NULL;
+    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); return; }
+    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); return; }
+    OQ_RefreshOverlayFromClient();
+    const oquake_inventory_entry_t* item = OQ_FindFirstHealthEntry();
+    if (!item) { Con_Printf("No health item in STAR inventory.\n"); return; }
+    if (OQ_WouldUseExceedMax(item->name, item->item_type, item->description, &toast_msg)) {
+        Con_Printf("%s\n", toast_msg ? toast_msg : "Already at max health.");
+        return;
+    }
+    q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
+    q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
+    q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    star_sync_use_item_start(item->name, "oquake_use_health", OQ_OnUseItemFromOverlayDone, NULL);
+    Con_Printf("Using: %s...\n", item->name);
+}
+
+static void OQ_UseArmor_f(void) {
+    const char* toast_msg = NULL;
+    if (!g_star_initialized) { Con_Printf("STAR not initialized. Use star beamin.\n"); return; }
+    if (star_sync_use_item_in_progress()) { Con_Printf("Use in progress...\n"); return; }
+    OQ_RefreshOverlayFromClient();
+    const oquake_inventory_entry_t* item = OQ_FindFirstArmorEntry();
+    if (!item) { Con_Printf("No armor item in STAR inventory.\n"); return; }
+    if (OQ_WouldUseExceedMax(item->name, item->item_type, item->description, &toast_msg)) {
+        Con_Printf("%s\n", toast_msg ? toast_msg : "Already at max armor.");
+        return;
+    }
+    q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
+    q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
+    q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
+    star_sync_use_item_start(item->name, "oquake_use_armor", OQ_OnUseItemFromOverlayDone, NULL);
+    Con_Printf("Using: %s...\n", item->name);
 }
 
 static void OQ_HandleSendPopupTyping(void)
@@ -1621,12 +1748,23 @@ void OQuake_STAR_Init(void) {
         Cmd_AddCommand("oasis_inventory_prevtab", OQ_InventoryPrevTab_f);
         Cmd_AddCommand("oasis_inventory_nexttab", OQ_InventoryNextTab_f);
         Cmd_AddCommand("oasis_reload_config", OQ_ReloadConfig_f);
+        Cmd_AddCommand("oquake_use_health", OQ_UseHealth_f);
+        Cmd_AddCommand("oquake_use_armor", OQ_UseArmor_f);
         g_star_console_registered = 1;
         /* Default: I key opens OASIS inventory if not already bound */
         {
             int kn = Key_StringToKeynum("i");
             if (kn >= 0 && kn < MAX_KEYS && (!keybindings[kn] || !keybindings[kn][0]))
                 Key_SetBinding(kn, "oasis_inventory_toggle");
+        }
+        /* C = use health, F = use armor (like ODOOM) */
+        {
+            int kc = Key_StringToKeynum("c");
+            int kf = Key_StringToKeynum("f");
+            if (kc >= 0 && kc < MAX_KEYS && (!keybindings[kc] || !keybindings[kc][0]))
+                Key_SetBinding(kc, "oquake_use_health");
+            if (kf >= 0 && kf < MAX_KEYS && (!keybindings[kf] || !keybindings[kf][0]))
+                Key_SetBinding(kf, "oquake_use_armor");
         }
     }
 
@@ -2524,12 +2662,16 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
     q_snprintf(log_buf, sizeof(log_buf), "InterceptTouch: class=%s health=%d max_h=%d armor=%d max_a=%d always_add=%d allow_ifmax=%d first_item=%d",
                classname, player_health, max_h, player_armor, max_a, always_add, allow_pickup_if_max, first_edict_is_item);
     OQ_PickupLog("%s", log_buf);
+    /* Only intercept (return 1) when we are in the item's touch block (e1=item). When e1=player we must return 0 or engine would ED_Free(player). */
+    if (!first_edict_is_item)
+        return 0;
     /* Health: item_health (25), item_health_mega / item_health_super (100). use_health_on_pickup: 0=below max->inventory only; 1=standard. */
     if (OQ_StrEqNoCase(classname, "item_health")) {
         int use_health = (oquake_star_use_health_on_pickup.string && atoi(oquake_star_use_health_on_pickup.string)) ? 1 : 0;
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Health", "Health", 1, "Health (+25)");
-            return (player_health >= max_h) ? 1 : 0;
+            if (player_health >= max_h) return 1;
+            return use_health ? 0 : 1;  /* below max: use_health 0 -> intercept only; 1 -> let engine use */
         }
         if (player_health >= max_h) {
             if (!allow_pickup_if_max) return 0;
@@ -2547,7 +2689,8 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
         int use_powerup = (oquake_star_use_powerup_on_pickup.string && atoi(oquake_star_use_powerup_on_pickup.string)) ? 1 : 0;
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
-            return (player_health >= max_h) ? 1 : 0;
+            if (player_health >= max_h) return 1;
+            return use_powerup ? 0 : 1;
         }
         if (player_health >= max_h) {
             if (!allow_pickup_if_max) return 0;
@@ -2565,7 +2708,8 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Green Armor", "Armor", 1, "Green Armor (+100)");
-            return (player_armor >= max_a) ? 1 : 0;
+            if (player_armor >= max_a) return 1;
+            return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
             if (!allow_pickup_if_max) return 0;
@@ -2582,7 +2726,8 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Yellow Armor", "Armor", 1, "Yellow Armor (+150)");
-            return (player_armor >= max_a) ? 1 : 0;
+            if (player_armor >= max_a) return 1;
+            return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
             if (!allow_pickup_if_max) return 0;
@@ -2599,7 +2744,8 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
         int use_armor = (oquake_star_use_armor_on_pickup.string && atoi(oquake_star_use_armor_on_pickup.string)) ? 1 : 0;
         if (always_add) {
             OQuake_STAR_OnPickupLeftOnFloor("Red Armor", "Armor", 1, "Red Armor (+200)");
-            return (player_armor >= max_a) ? 1 : 0;
+            if (player_armor >= max_a) return 1;
+            return use_armor ? 0 : 1;
         }
         if (player_armor >= max_a) {
             if (!allow_pickup_if_max) return 0;
