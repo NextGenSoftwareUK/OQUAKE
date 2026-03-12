@@ -971,8 +971,10 @@ void _Host_Frame (double time)
 
 	// fetch results from server
 	if (cls.state == ca_connected)
+	{
 		CL_ReadFromServer ();
 		OQuake_STAR_PollItems ();
+	};
 
 	// update video
 	if (host_speeds.value)
