@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#include "oquake_star_integration.h"
+
 extern cvar_t cl_maxpitch; // johnfitz -- variable pitch clamping
 extern cvar_t cl_minpitch; // johnfitz -- variable pitch clamping
 
@@ -413,6 +415,9 @@ void CL_BaseMove (usercmd_t *cmd)
 	memset (cmd, 0, sizeof (*cmd));
 
 	VectorCopy (cl.viewangles, cmd->viewangles);
+
+	if (OQuake_STAR_IsQuestPopupOpen ())
+		return;
 
 	if (cls.signon != SIGNONS)
 		return;
