@@ -4159,6 +4159,9 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         static char sq_name[OQ_LINKS_MAX][128];
         static char sq_desc[OQ_LINKS_MAX][256];
         static int sq_count;
+#ifdef STAR_API_HAS_QUEST_OBJECTIVES_CACHE_VERSION
+        static int s_quest_objectives_cache_version = -1;
+#endif
         pr_count = 0;
         obj_count = 0;
         sq_count = 0;
@@ -4167,6 +4170,17 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             if (nr > 0) prereq_buf[nr] = '\0';
             int no = star_api_get_quest_objectives_string(panel_quest_id, objectives_buf, sizeof(objectives_buf));
             if (no > 0) objectives_buf[no] = '\0';
+#ifdef STAR_API_HAS_QUEST_OBJECTIVES_CACHE_VERSION
+            /* When objectives cache version changes (on-demand fetch merged), re-fetch so the list refreshes immediately. */
+            {
+                int obj_ver = star_api_get_quest_objectives_cache_version();
+                if (obj_ver != s_quest_objectives_cache_version) {
+                    s_quest_objectives_cache_version = obj_ver;
+                    no = star_api_get_quest_objectives_string(panel_quest_id, objectives_buf, sizeof(objectives_buf));
+                    if (no > 0) objectives_buf[no] = '\0';
+                }
+            }
+#endif
             int ns = star_api_get_quest_sub_quests_string(panel_quest_id, subquest_buf, sizeof(subquest_buf));
             if (ns > 0) subquest_buf[ns] = '\0';
             /* Parse prereq_buf: lines "Q\tid\tname\tdesc\tstatus\tpct" */
@@ -4502,9 +4516,9 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         }
 
         if (n >= 9 && memcmp(quest_buf, "Loading...", 9) == 0) {
-            Draw_String(cbx, qx + 10, qy + 48, "Loading quests...");
+            Draw_String(cbx, qx + 30, qy + 48, "Loading quests...");
         } else if (n >= 6 && memcmp(quest_buf, "Error:", 6) == 0) {
-            Draw_String(cbx, qx + 10, qy + 48, "Error loading quests. Check console or star_api.log for details.");
+            Draw_String(cbx, qx + 30, qy + 48, "Error loading quests. Check console or star_api.log for details.");
         } else if (left_list_count > 0 || g_quest_drill_parent_id[0]) {
             /* Left: table Name | % | Status (half name column: 27 chars) */
             char name_buf[64];
@@ -4723,13 +4737,18 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             Draw_String(cbx, qx + 10, qy + 48, "No Quests Found");
         }
 
-        /* Bottom info text centre-aligned */
+        /* Bottom info text: main list = centre minus 10 (left 10); detail/drill = centre plus 10 (right 10) */
         {
             const char* footer = g_quest_drill_parent_id[0]
                 ? "B/N/M=Filter  Space=Switch  PgUp/PgDn=Page  Home/End  Enter=Start/Set  Escape=Back  Q=Close"
                 : "B/N/M=Filter  Space=Switch  PgUp/PgDn=Page  Home/End=Top/Bottom  Enter=Start/Set  Q=Close";
             int footer_len = (int)strlen(footer);
-            Draw_String(cbx, qx + (qw - footer_len * 8) / 2, qy + qh - 20, footer);
+            int footer_x = qx + (qw - footer_len * 8) / 2;
+            if (g_quest_drill_parent_id[0])
+                footer_x += 10;   /* detail quest popup: hint right 10 */
+            else
+                footer_x -= 10;   /* main list: hint left 10 */
+            Draw_String(cbx, footer_x, qy + qh - 20, footer);
         }
         /* Status message in bottom-right (e.g. "Starting quest..."), 10px higher than before */
         if (g_quest_status_frames > 0 && g_quest_status_message[0]) {
