@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+
+#include "oquake_star_integration.h"
 #include "arch_def.h"
 
 /* key up events are sent even if in console mode */
@@ -1076,6 +1078,8 @@ void Key_EventWithKeycode (int key, qboolean down, int keycode)
 	if ((key_dest == key_menu && menubound[key] && !M_WaitingForKeyBinding ()) || (key_dest == key_console && !consolekeys[key]) ||
 		(key_dest == key_game && (!con_forcedup || !consolekeys[key])))
 	{
+		if (key == K_TAB && (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ()))
+		 return;
 		kb = keybindings[key];
 		if (kb)
 		{
