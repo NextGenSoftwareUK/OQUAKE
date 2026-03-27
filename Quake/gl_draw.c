@@ -512,6 +512,107 @@ static void Draw_FillCharacterQuad (float x, float y, char num, basicvertex_t *o
 
 /*
 ================
+Draw_FillCharacterQuadScaled -- OQuake overlay (2x text)
+================
+*/
+static void Draw_FillCharacterQuadScaled (float x, float y, char num, basicvertex_t *output, int rotation, float scale, const byte rgba[4])
+{
+	const int	row = num >> 4;
+	const int	col = num & 15;
+	const float st_size = 1.0f / 16.0f;
+	const float texel_offset = 0.001f;
+	const float frow = row * st_size;
+	const float fcol = col * st_size;
+	const float	sz = CHARACTER_SIZE * scale;
+
+	basicvertex_t corner_verts[4];
+	float texcoords[4][2] = {
+		{x, y},
+		{x + sz, y},
+		{x + sz, y + sz},
+		{x, y + sz},
+	};
+
+	for (int vi = 0; vi < 4; ++vi)
+		for (int j = 0; j < 4; ++j)
+			corner_verts[vi].color[j] = rgba[j];
+
+	corner_verts[0].position[0] = texcoords[(rotation + 0) % 4][0];
+	corner_verts[0].position[1] = texcoords[(rotation + 0) % 4][1];
+	corner_verts[0].position[2] = 0.0f;
+	corner_verts[0].texcoord[0] = fcol + texel_offset;
+	corner_verts[0].texcoord[1] = frow + texel_offset;
+
+	corner_verts[1].position[0] = texcoords[(rotation + 1) % 4][0];
+	corner_verts[1].position[1] = texcoords[(rotation + 1) % 4][1];
+	corner_verts[1].position[2] = 0.0f;
+	corner_verts[1].texcoord[0] = fcol + st_size - texel_offset;
+	corner_verts[1].texcoord[1] = frow + texel_offset;
+
+	corner_verts[2].position[0] = texcoords[(rotation + 2) % 4][0];
+	corner_verts[2].position[1] = texcoords[(rotation + 2) % 4][1];
+	corner_verts[2].position[2] = 0.0f;
+	corner_verts[2].texcoord[0] = fcol + st_size - texel_offset;
+	corner_verts[2].texcoord[1] = frow + st_size - texel_offset;
+
+	corner_verts[3].position[0] = texcoords[(rotation + 3) % 4][0];
+	corner_verts[3].position[1] = texcoords[(rotation + 3) % 4][1];
+	corner_verts[3].position[2] = 0.0f;
+	corner_verts[3].texcoord[0] = fcol + texel_offset;
+	corner_verts[3].texcoord[1] = frow + st_size - texel_offset;
+
+	output[0] = corner_verts[0];
+	output[1] = corner_verts[1];
+	output[2] = corner_verts[2];
+	output[3] = corner_verts[2];
+	output[4] = corner_verts[3];
+	output[5] = corner_verts[0];
+}
+
+/*
+================
+Draw_StringScaled -- OQuake overlay
+================
+*/
+void Draw_StringScaled (cb_context_t *cbx, float x, float y, float scale, const char *str, const byte *rgba)
+{
+	int			num_verts = 0;
+	int			i;
+	const char *tmp;
+	const float	sz = CHARACTER_SIZE * scale;
+	static byte	white[4] = {255, 255, 255, 255};
+	const byte *use_rgba = rgba ? rgba : white;
+
+	if (y <= -sz)
+		return;
+
+	for (tmp = str; *tmp != 0; ++tmp)
+		if (*tmp != 32)
+			num_verts += 6;
+
+	VkBuffer	   buffer;
+	VkDeviceSize   buffer_offset;
+	basicvertex_t *vertices = (basicvertex_t *)R_VertexAllocate (num_verts * sizeof (basicvertex_t), &buffer, &buffer_offset);
+
+	for (i = 0; *str != 0; ++str)
+	{
+		if (*str != 32)
+		{
+			Draw_FillCharacterQuadScaled (x, y, *str, vertices + i * 6, 0, scale, use_rgba);
+			i++;
+		}
+		x += sz;
+	}
+
+	vulkan_globals.vk_cmd_bind_vertex_buffers (cbx->cb, 0, 1, &buffer, &buffer_offset);
+	R_BindPipeline (cbx, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_globals.basic_alphatest_pipeline[cbx->render_pass_index]);
+	vulkan_globals.vk_cmd_bind_descriptor_sets (
+		cbx->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_globals.basic_pipeline_layout.handle, 0, 1, &char_texture->descriptor_set, 0, NULL);
+	vulkan_globals.vk_cmd_draw (cbx->cb, num_verts, 1, 0, 0);
+}
+
+/*
+================
 Draw_Character
 ================
 */
