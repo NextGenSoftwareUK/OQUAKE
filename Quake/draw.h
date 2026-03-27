@@ -41,6 +41,8 @@ void	Draw_TileClear (cb_context_t *cbx, float x, float y, float w, float h);
 void	Draw_Fill (cb_context_t *cbx, float x, float y, float w, float h, int c, float alpha); // johnfitz -- added alpha
 void	Draw_FadeScreen (cb_context_t *cbx);
 void	Draw_String (cb_context_t *cbx, float x, float y, const char *str);
+/** Scaled 8x8 conchars; rgba NULL = white. Used by OQuake overlay HUD. */
+void	Draw_StringScaled (cb_context_t *cbx, float x, float y, float scale, const char *str, const byte *rgba);
 void	Draw_String_3D (cb_context_t *cbx, vec3_t coords, float size, const char *str);
 qpic_t *Draw_PicFromWad2 (const char *name, unsigned int texflags);
 qpic_t *Draw_PicFromWad (const char *name);
