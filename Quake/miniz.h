@@ -685,7 +685,9 @@ typedef struct mz_dummy_time_t_tag
 #define MZ_CLEAR_ARR(obj) memset((obj), 0, sizeof(obj))
 #define MZ_CLEAR_PTR(obj) memset((obj), 0, sizeof(*obj))
 
-#if MINIZ_USE_UNALIGNED_LOADS_AND_STORES && MINIZ_LITTLE_ENDIAN
+/* Sanitizers flag unaligned integer loads as UB on some paths. Use byte-wise LE reads in sanitizer builds. */
+#if MINIZ_USE_UNALIGNED_LOADS_AND_STORES && MINIZ_LITTLE_ENDIAN && \
+    !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_UNDEFINED__)
 #define MZ_READ_LE16(p) *((const mz_uint16 *)(p))
 #define MZ_READ_LE32(p) *((const mz_uint32 *)(p))
 #else

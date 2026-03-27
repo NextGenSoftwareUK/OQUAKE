@@ -25,6 +25,7 @@
 #else
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #endif
 
 #if defined(_MSC_VER) || !defined(__GLIBC__)
@@ -41,6 +42,9 @@ static inline void* OQ_memmem(const void* hay, size_t haylen, const void* needle
 }
 #define memmem(bp, blen, s, slen) OQ_memmem(bp, blen, s, slen)
 #endif
+
+/* Async `star beamin` guard: wall-clock seconds (frame-based timeout broke at high FPS). Keep near HttpClient timeout. */
+#define OQ_BEAMIN_ASYNC_TIMEOUT_SEC 30.0
 
 #ifndef STAR_API_HAS_SEND_ITEM
 /* Forward declare send-item API when using an older star_api.h. Link with updated star_api.lib. */
@@ -61,15 +65,14 @@ void star_api_refresh_avatar_profile(void) {
 	if (fn) fn();
 }
 #else
+/* RTLD_NEXT: dlopen(NULL)+dlsym resolves this same symbol in the executable → infinite recursion. NEEDED is often star_api.so, not libstar_api.so. */
 void star_api_refresh_avatar_profile(void) {
 	typedef void (*fn_t)(void);
-	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_refresh_avatar_profile");
-	}
-	if (fn) fn();
+	static fn_t real_fn;
+	if (!real_fn)
+		real_fn = (fn_t)dlsym(RTLD_NEXT, "star_api_refresh_avatar_profile");
+	if (real_fn)
+		real_fn();
 }
 #endif
 #endif
@@ -176,14 +179,12 @@ static void star_api_request_inventory_in_background_impl(void) {
 }
 void star_api_request_inventory_in_background(void) { star_api_request_inventory_in_background_impl(); }
 #else
+/* RTLD_NEXT: avoid dlsym binding to these forwarders in the main binary (same issue as star_api_refresh_avatar_profile). */
 static star_api_result_t star_api_authenticate_with_jwt_out_impl(const char* user, const char* pass, char* jwt_buf, size_t jwt_size) {
 	typedef star_api_result_t (*fn_t)(const char*, const char*, char*, size_t);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_authenticate_with_jwt_out");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_authenticate_with_jwt_out");
 	return fn ? fn(user, pass, jwt_buf, jwt_size) : (star_api_result_t)STAR_API_ERROR_NOT_INITIALIZED;
 }
 star_api_result_t star_api_authenticate_with_jwt_out(const char* user, const char* pass, char* jwt_buf, size_t jwt_size) { return star_api_authenticate_with_jwt_out_impl(user, pass, jwt_buf, jwt_size); }
@@ -191,11 +192,8 @@ star_api_result_t star_api_authenticate_with_jwt_out(const char* user, const cha
 static star_api_result_t star_api_set_saved_session_impl(const char* jwt) {
 	typedef star_api_result_t (*fn_t)(const char*);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_set_saved_session");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_set_saved_session");
 	return fn ? fn(jwt) : (star_api_result_t)STAR_API_ERROR_NOT_INITIALIZED;
 }
 star_api_result_t star_api_set_saved_session(const char* jwt) { return star_api_set_saved_session_impl(jwt); }
@@ -203,11 +201,8 @@ star_api_result_t star_api_set_saved_session(const char* jwt) { return star_api_
 static star_api_result_t star_api_restore_session_impl(void) {
 	typedef star_api_result_t (*fn_t)(void);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_restore_session");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_restore_session");
 	return fn ? fn() : (star_api_result_t)STAR_API_ERROR_NOT_INITIALIZED;
 }
 star_api_result_t star_api_restore_session(void) { return star_api_restore_session_impl(); }
@@ -215,11 +210,8 @@ star_api_result_t star_api_restore_session(void) { return star_api_restore_sessi
 static int star_api_get_current_username_impl(char* buf, size_t buf_size) {
 	typedef int (*fn_t)(char*, size_t);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_get_current_username");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_get_current_username");
 	return fn ? fn(buf, buf_size) : 0;
 }
 int star_api_get_current_username(char* buf, size_t buf_size) { return star_api_get_current_username_impl(buf, buf_size); }
@@ -227,11 +219,8 @@ int star_api_get_current_username(char* buf, size_t buf_size) { return star_api_
 static int star_api_get_current_jwt_impl(char* buf, size_t buf_size) {
 	typedef int (*fn_t)(char*, size_t);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_get_current_jwt");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_get_current_jwt");
 	return fn ? fn(buf, buf_size) : 0;
 }
 int star_api_get_current_jwt(char* buf, size_t buf_size) { return star_api_get_current_jwt_impl(buf, buf_size); }
@@ -239,23 +228,18 @@ int star_api_get_current_jwt(char* buf, size_t buf_size) { return star_api_get_c
 static void star_api_set_refresh_token_impl(const char* refresh_token) {
 	typedef void (*fn_t)(const char*);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_set_refresh_token");
-	}
-	if (fn) fn(refresh_token);
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_set_refresh_token");
+	if (fn)
+		fn(refresh_token);
 }
 void star_api_set_refresh_token(const char* refresh_token) { star_api_set_refresh_token_impl(refresh_token); }
 
 static int star_api_get_current_refresh_token_impl(char* buf, size_t buf_size) {
 	typedef int (*fn_t)(char*, size_t);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_get_current_refresh_token");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_get_current_refresh_token");
 	return fn ? fn(buf, buf_size) : 0;
 }
 int star_api_get_current_refresh_token(char* buf, size_t buf_size) { return star_api_get_current_refresh_token_impl(buf, buf_size); }
@@ -263,11 +247,8 @@ int star_api_get_current_refresh_token(char* buf, size_t buf_size) { return star
 static int star_api_is_session_expired_impl(void) {
 	typedef int (*fn_t)(void);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_is_session_expired");
-	}
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_is_session_expired");
 	return fn ? fn() : 0;
 }
 int star_api_is_session_expired(void) { return star_api_is_session_expired_impl(); }
@@ -275,12 +256,10 @@ int star_api_is_session_expired(void) { return star_api_is_session_expired_impl(
 static void star_api_request_inventory_in_background_impl(void) {
 	typedef void (*fn_t)(void);
 	static fn_t fn;
-	if (!fn) {
-		void* h = dlopen("libstar_api.so", RTLD_NOW | RTLD_NOLOAD);
-		if (!h) h = dlopen(NULL, RTLD_NOW);
-		if (h) fn = (fn_t)dlsym(h, "star_api_request_inventory_in_background");
-	}
-	if (fn) fn();
+	if (!fn)
+		fn = (fn_t)dlsym(RTLD_NEXT, "star_api_request_inventory_in_background");
+	if (fn)
+		fn();
 }
 void star_api_request_inventory_in_background(void) { star_api_request_inventory_in_background_impl(); }
 #endif
@@ -341,6 +320,12 @@ static int g_star_beamed_in = 0;
 static int g_star_refresh_xp_called_this_session = 0;
 /** Set by STAR API callback when profile refresh (XP + active quest/objective) completes. Main thread reads this in OQuake_STAR_PollItems and restores tracker + invalidates quest cache. */
 static volatile int g_star_profile_loaded_pending = 0;
+/** True when async SSO auth was started (star beamin); cleared when OQ_OnAuthDone runs or timeout. Used to show timeout error if callback never fires. */
+static int g_star_async_auth_pending = 0;
+/* Wall-clock start for async beamin; do not use frame counts (high FPS caused ~7s false timeouts). */
+static double g_star_async_auth_start_realtime = 0;
+/** Set when we showed timeout; ignore the next OQ_OnAuthDone (late callback from the timed-out attempt) and allow retry. */
+static int g_star_auth_timed_out = 0;
 static int g_star_console_registered = 0;
 static char g_star_username[64] = {0};
 static char g_json_config_path[512] = {0};
@@ -361,7 +346,8 @@ extern char *keybindings[MAX_KEYS];
 extern qboolean keydown[MAX_KEYS];
 extern int Key_StringToKeynum(const char *str);
 extern void Key_SetBinding(int keynum, const char *binding);
-extern int key_dest;
+extern void Key_ClearStates(void);
+/* key_dest is keydest_t and declared in keys.h (included via quakedef.h); do not redeclare here */
 
 cvar_t oasis_star_anorak_face = {"oasis_star_anorak_face", "0", 0}; /* Runtime state - not archived */
 cvar_t oasis_star_beam_face = {"oasis_star_beam_face", "1", CVAR_ARCHIVE};
@@ -465,8 +451,9 @@ static int g_inventory_count = 0;
 static int g_inventory_active_tab = OQ_TAB_KEYS;
 static qboolean g_inventory_open = false;
 static double g_inventory_last_refresh = 0.0;
-static int g_inventory_refresh_pending = 0;  /* set when operation_callback(STAR_API_OP_GET_INVENTORY) fires; main thread applies cache to overlay */
-static int g_inventory_requested = 0;        /* 1 after request_inventory_in_background until callback fires (show Loading...) */
+/* Callback runs on C# thread pool; main thread reads these. Use volatile so main thread sees updates (avoids hang/crash on some platforms). */
+static volatile int g_inventory_refresh_pending = 0;  /* set when operation_callback(STAR_API_OP_GET_INVENTORY) fires */
+static volatile int g_inventory_requested = 0;        /* 1 after request_inventory_in_background until callback fires (show Loading...) */
 static char g_inventory_status[128] = "STAR inventory unavailable.";
 static int g_inventory_selected_row = 0;
 static int g_inventory_scroll_row = 0;
@@ -484,13 +471,19 @@ static int g_inventory_send_popup = OQ_SEND_POPUP_NONE;
 #if 0
 static unsigned int g_inventory_event_seq = 0;
 #endif
-static qboolean g_inventory_popup_input_captured = false;
+static qboolean g_inventory_popup_input_captured __attribute__((unused)) = false;
 static qboolean g_inventory_send_bindings_captured = false;
-static char g_inventory_saved_up_bind[128];
-static char g_inventory_saved_down_bind[128];
-static char g_inventory_saved_left_bind[128];
-static char g_inventory_saved_right_bind[128];
+static char g_inventory_saved_up_bind[128] __attribute__((unused));
+static char g_inventory_saved_down_bind[128] __attribute__((unused));
+static char g_inventory_saved_left_bind[128] __attribute__((unused));
+static char g_inventory_saved_right_bind[128] __attribute__((unused));
 static char g_inventory_saved_all_binds[MAX_KEYS][128];
+/* Movement keys (WASD + arrows): when inventory or quest popup is open, we clear these bindings so the player cannot move even if the engine was not patched (e.g. Linux without cl_input.c patch). Restored on close. */
+#define OQ_MOVEMENT_KEY_COUNT 8
+static int g_movement_key_indices[OQ_MOVEMENT_KEY_COUNT];  /* filled on first use */
+static char g_movement_saved_binds[OQ_MOVEMENT_KEY_COUNT][128];
+static qboolean g_movement_bindings_captured = false;
+static qboolean g_movement_keys_resolved = false;
 /* Pending use-item from overlay (E key): applied in callback after async use completes so inventory refresh shows correct qty/removal. */
 static char g_oq_use_pending_name[256];
 static char g_oq_use_pending_type[64];
@@ -797,9 +790,52 @@ static int OQ_GetSelectedGroupInfo(int* out_rep_index, int* out_mode, int* out_v
     return 1;
 }
 
+/** Resolve movement key indices once (WASD + arrows). Used so we can clear bindings when popup is open on Linux where engine may not be patched. */
+static void OQ_ResolveMovementKeys(void)
+{
+    static const char* const names[OQ_MOVEMENT_KEY_COUNT] = {
+        "w", "a", "s", "d", "uparrow", "downarrow", "leftarrow", "rightarrow"
+    };
+    int i;
+    if (g_movement_keys_resolved)
+        return;
+    g_movement_keys_resolved = true;
+    for (i = 0; i < OQ_MOVEMENT_KEY_COUNT; i++) {
+        int kn = Key_StringToKeynum(names[i]);
+        g_movement_key_indices[i] = (kn >= 0 && kn < MAX_KEYS) ? kn : -1;
+    }
+}
+
+/** When inventory or quest popup is open: clear WASD and arrow key bindings so the player cannot move (fallback when engine cl_input.c is not patched, e.g. Linux). Restore on close so keys work immediately. */
 static void OQ_UpdatePopupInputCapture(void)
 {
-    /* Intentionally no-op: inventory popup should not override gameplay bindings. */
+    int i;
+    qboolean popup_open = (g_inventory_open || g_quest_popup_open) ? true : false;
+
+    if (popup_open) {
+        OQ_ResolveMovementKeys();
+        if (!g_movement_bindings_captured) {
+            for (i = 0; i < OQ_MOVEMENT_KEY_COUNT; i++) {
+                int k = g_movement_key_indices[i];
+                if (k >= 0) {
+                    q_strlcpy(g_movement_saved_binds[i],
+                        keybindings[k] ? keybindings[k] : "",
+                        sizeof(g_movement_saved_binds[i]));
+                    Key_SetBinding(k, "");
+                }
+            }
+            Key_ClearStates();
+            g_movement_bindings_captured = true;
+        }
+    } else if (g_movement_bindings_captured) {
+        for (i = 0; i < OQ_MOVEMENT_KEY_COUNT; i++) {
+            int k = g_movement_key_indices[i];
+            if (k >= 0)
+                Key_SetBinding(k, g_movement_saved_binds[i]);
+        }
+        Key_ClearStates();
+        g_movement_bindings_captured = false;
+    }
 }
 
 static void OQ_UpdateSendPopupBindingCapture(void)
@@ -894,6 +930,7 @@ static void OQ_SendSelectedItem(void)
     }
 
     send_kind = (g_inventory_send_popup == OQ_SEND_POPUP_CLAN) ? "clan" : "avatar";
+    (void)send_kind; /* reserved for future log/API */
     OQ_GetSelectedGroupInfo(NULL, &mode, &available, NULL, 0);
     if (mode != OQ_GROUP_MODE_COUNT)
         available = 1;
@@ -1050,7 +1087,7 @@ static void OQ_UseSelectedItem(void)
     q_strlcpy(g_oq_use_pending_name, item->name, sizeof(g_oq_use_pending_name));
     q_strlcpy(g_oq_use_pending_type, item->item_type, sizeof(g_oq_use_pending_type));
     q_strlcpy(g_oq_use_pending_description, item->description, sizeof(g_oq_use_pending_description));
-    OQ_StarDebugLog("UseItem (E key): starting async name='%s' type='%s' context=inventory_overlay", item->name, item->item_type ? item->item_type : "");
+    OQ_StarDebugLog("UseItem (E key): starting async name='%s' type='%s' context=inventory_overlay", item->name, item->item_type[0] ? item->item_type : "");
     star_sync_use_item_start(item->name, "inventory_overlay", OQ_OnUseItemFromOverlayDone, NULL);
     q_snprintf(g_inventory_status, sizeof(g_inventory_status), "Using: %s...", item->name);
 }
@@ -1060,11 +1097,11 @@ static const oquake_inventory_entry_t* OQ_FindFirstHealthEntry(void) {
     int i;
     for (i = 0; i < g_inventory_count; i++) {
         const oquake_inventory_entry_t* e = &g_inventory_entries[i];
-        if (OQ_ItemMatchesTab(e, OQ_TAB_POWERUPS) && e->name && (OQ_ContainsNoCase(e->name, "Megahealth") || OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")))
+        if (OQ_ItemMatchesTab(e, OQ_TAB_POWERUPS) && e->name[0] && (OQ_ContainsNoCase(e->name, "Megahealth") || OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")))
             return e;
-        if (e->item_type && OQ_ContainsNoCase(e->item_type, "health"))
+        if (e->item_type[0] && OQ_ContainsNoCase(e->item_type, "health"))
             return e;
-        if (e->name && (OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")) && !OQ_ItemMatchesTab(e, OQ_TAB_ARMOR))
+        if (e->name[0] && (OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")) && !OQ_ItemMatchesTab(e, OQ_TAB_ARMOR))
             return e;
     }
     return NULL;
@@ -1232,11 +1269,18 @@ static void OQ_OnAuthDone(void* user_data) {
     char avatar_id[64] = {0};
     char error_msg[256] = {0};
     (void)user_data;
+    if (g_star_auth_timed_out) {
+        g_star_auth_timed_out = 0;
+        (void)star_sync_auth_get_result(&success, username, sizeof(username), avatar_id, sizeof(avatar_id), error_msg, sizeof(error_msg));
+        return;  /* Late callback from timed-out attempt; drain result and ignore so retry already allowed */
+    }
     if (!star_sync_auth_get_result(&success, username, sizeof(username), avatar_id, sizeof(avatar_id), error_msg, sizeof(error_msg)))
         return;
     char jwt_buf[2048] = {0};
     star_sync_auth_get_result_jwt(jwt_buf, sizeof(jwt_buf));
+    g_star_async_auth_pending = 0;
     if (success) {
+        star_api_log_to_file("[OQuake] Beamin: auth OK (async callback); loading profile");
         /* Persist JWT from auth result so oasisstar.json has jwt_token for autobeamin (avoids relying on get_current_jwt export). */
         if (jwt_buf[0])
             q_strlcpy(g_oq_saved_jwt, jwt_buf, sizeof(g_oq_saved_jwt));
@@ -1276,7 +1320,18 @@ static void OQ_OnAuthDone(void* user_data) {
         OQ_SaveStarConfigToFiles();
         Con_Printf("Logged in (beamin). Cross-game assets enabled.\n");
     } else {
-        Con_Printf("Beamin (SSO) failed: %s\n", error_msg[0] ? error_msg : "Unknown error");
+        const char* msg = error_msg[0] ? error_msg : "Unknown error";
+        {
+            char logb[384];
+            q_snprintf(logb, sizeof(logb), "[OQuake] Beamin: auth failed (async): %s", msg);
+            star_api_log_to_file(logb);
+        }
+        Con_Printf("Beam-in failed: %s\n", msg);
+        {
+            char toast_buf[256];
+            q_snprintf(toast_buf, sizeof(toast_buf), "Beam-in failed: %s", msg);
+            OQ_SetToastMessage(toast_buf);
+        }
     }
 }
 
@@ -1295,9 +1350,14 @@ static void OQ_StarApiOperationCallback(star_api_result_t result, int operation_
     }
     if (operation_type == STAR_API_OP_GET_INVENTORY) {
         star_item_list_t* list = NULL;
+        const char* err_msg = NULL;
         if (result == STAR_API_SUCCESS)
             star_api_get_inventory(&list);
-        star_sync_inventory_deliver_result(list, result, result != STAR_API_SUCCESS ? star_api_get_last_error() : NULL);
+        else if (result == STAR_API_ERROR_NOT_INITIALIZED)
+            err_msg = "Not initialized";
+        else
+            err_msg = star_api_get_last_error();
+        star_sync_inventory_deliver_result(list, result, err_msg);
         g_inventory_requested = 0;
         g_inventory_refresh_pending = 1;
     }
@@ -1339,42 +1399,63 @@ static void OQ_RefreshOverlayFromClient(void) {
         g_inventory_refresh_pending = 0;
         g_inventory_count = 0;
         if (star_api_get_inventory(&list) == STAR_API_SUCCESS && list) {
-            size_t i;
-            for (i = 0; i < list->count && g_inventory_count < OQ_MAX_INVENTORY_ITEMS; i++) {
-                oquake_inventory_entry_t* dst = &g_inventory_entries[g_inventory_count];
-                q_strlcpy(dst->name, list->items[i].name, sizeof(dst->name));
-                q_strlcpy(dst->description, list->items[i].description, sizeof(dst->description));
-                q_strlcpy(dst->item_type, list->items[i].item_type, sizeof(dst->item_type));
-                q_strlcpy(dst->id, list->items[i].id, sizeof(dst->id));
-                q_strlcpy(dst->game_source, list->items[i].game_source, sizeof(dst->game_source));
-                q_strlcpy(dst->nft_id, list->items[i].nft_id, sizeof(dst->nft_id));
-                dst->quantity = list->items[i].quantity > 0 ? list->items[i].quantity : 1;
-                g_inventory_count++;
+            size_t i, n = list->count;
+            /* Defensive: avoid null deref or huge loop if C# returns bad data */
+            if (list->items && n <= OQ_MAX_INVENTORY_ITEMS * 2) {
+                for (i = 0; i < n && g_inventory_count < OQ_MAX_INVENTORY_ITEMS; i++) {
+                    oquake_inventory_entry_t* dst = &g_inventory_entries[g_inventory_count];
+                    const char* nm = list->items[i].name;
+                    const char* desc = list->items[i].description;
+                    const char* typ = list->items[i].item_type;
+                    const char* id = list->items[i].id;
+                    const char* src = list->items[i].game_source;
+                    const char* nft = list->items[i].nft_id;
+                    q_strlcpy(dst->name, nm ? nm : "", sizeof(dst->name));
+                    q_strlcpy(dst->description, desc ? desc : "", sizeof(dst->description));
+                    q_strlcpy(dst->item_type, typ ? typ : "", sizeof(dst->item_type));
+                    q_strlcpy(dst->id, id ? id : "", sizeof(dst->id));
+                    q_strlcpy(dst->game_source, src ? src : "", sizeof(dst->game_source));
+                    q_strlcpy(dst->nft_id, nft ? nft : "", sizeof(dst->nft_id));
+                    dst->quantity = list->items[i].quantity > 0 ? list->items[i].quantity : 1;
+                    g_inventory_count++;
+                }
             }
             star_api_free_item_list(list);
         }
     } else if (!g_inventory_requested && g_inventory_count == 0) {
-        /* No data yet (e.g. overlay just opened): request once and show Loading until callback delivers. */
+        /* When not beamed in: never call into C# (avoids hang on Linux). Show empty inventory and return. */
+        if (!star_initialized()) {
+            q_strlcpy(g_inventory_status, "Not beamed in. Use 'star beamin' to log in.", sizeof(g_inventory_status));
+            g_inventory_last_refresh = realtime;
+            if (star_sync_send_item_in_progress())
+                return;
+            return;
+        }
+        /* No data yet (overlay just opened, and we are initialized): request once. */
         star_api_request_inventory_in_background();
         g_inventory_requested = 1;
-        if (!star_initialized())
-            q_strlcpy(g_inventory_status, "Offline - use STAR BEAMIN", sizeof(g_inventory_status));
-        else
-            q_strlcpy(g_inventory_status, "Loading...", sizeof(g_inventory_status));
+        q_strlcpy(g_inventory_status, "Loading...", sizeof(g_inventory_status));
     } else {
         /* Already have items or request in flight: re-read from cache so pickups (add_item merged in C#) show up. */
         star_item_list_t* list = NULL;
-        if (star_api_get_inventory(&list) == STAR_API_SUCCESS && list) {
+        if (star_api_get_inventory(&list) == STAR_API_SUCCESS && list && list->items) {
+            size_t i, n = list->count;
+            if (n > OQ_MAX_INVENTORY_ITEMS * 2) n = OQ_MAX_INVENTORY_ITEMS * 2;
             g_inventory_count = 0;
-            size_t i;
-            for (i = 0; i < list->count && g_inventory_count < OQ_MAX_INVENTORY_ITEMS; i++) {
+            for (i = 0; i < n && g_inventory_count < OQ_MAX_INVENTORY_ITEMS; i++) {
                 oquake_inventory_entry_t* dst = &g_inventory_entries[g_inventory_count];
-                q_strlcpy(dst->name, list->items[i].name, sizeof(dst->name));
-                q_strlcpy(dst->description, list->items[i].description, sizeof(dst->description));
-                q_strlcpy(dst->item_type, list->items[i].item_type, sizeof(dst->item_type));
-                q_strlcpy(dst->id, list->items[i].id, sizeof(dst->id));
-                q_strlcpy(dst->game_source, list->items[i].game_source, sizeof(dst->game_source));
-                q_strlcpy(dst->nft_id, list->items[i].nft_id, sizeof(dst->nft_id));
+                const char* nm = list->items[i].name;
+                const char* desc = list->items[i].description;
+                const char* typ = list->items[i].item_type;
+                const char* id = list->items[i].id;
+                const char* src = list->items[i].game_source;
+                const char* nft = list->items[i].nft_id;
+                q_strlcpy(dst->name, nm ? nm : "", sizeof(dst->name));
+                q_strlcpy(dst->description, desc ? desc : "", sizeof(dst->description));
+                q_strlcpy(dst->item_type, typ ? typ : "", sizeof(dst->item_type));
+                q_strlcpy(dst->id, id ? id : "", sizeof(dst->id));
+                q_strlcpy(dst->game_source, src ? src : "", sizeof(dst->game_source));
+                q_strlcpy(dst->nft_id, nft ? nft : "", sizeof(dst->nft_id));
                 dst->quantity = list->items[i].quantity > 0 ? list->items[i].quantity : 1;
                 g_inventory_count++;
             }
@@ -1411,7 +1492,7 @@ static void OQ_RefreshInventoryCache(void) {
     if (!star_initialized()) {
         /* Still build display from local pending so ammo/armor show when offline. */
         OQ_RefreshOverlayFromClient();
-        q_strlcpy(g_inventory_status, "Offline - use STAR BEAMIN", sizeof(g_inventory_status));
+        q_strlcpy(g_inventory_status, "Not beamed in. Use 'star beamin' to log in.", sizeof(g_inventory_status));
         return;
     }
     /* Always refresh overlay (get_inventory returns API + pending from C#). */
@@ -1600,7 +1681,9 @@ static int OQ_FindConfigFile(const char *filename, char *out_path, int maxlen) {
     
     const char *locations[] = {
         "build/",  /* Relative to exe if in build folder */
-        "../build/",  /* One level up from exe */
+        "../build/",  /* One level up from exe (e.g. vkQuake/build-asan -> vkQuake/build) */
+        "../../OASIS/OASIS Omniverse/OQuake/build/", /* vkQuake/build-asan with OASIS+vkQuake siblings under Source/ */
+        "../OASIS/OASIS Omniverse/OQuake/build/",  /* Exe one level under vkQuake (e.g. build/) */
         "../OASIS Omniverse/OQuake/build/",  /* From basedir, go to OQuake build */
         "../../OASIS Omniverse/OQuake/build/",  /* Two levels up */
         "OASIS Omniverse/OQuake/build/",  /* Relative from repo root */
@@ -1696,11 +1779,28 @@ static int OQ_LoadJsonConfig(const char *json_path) {
     if (!f) {
         return 0;
     }
-    
-    char json[4096] = {0};
-    size_t len = fread(json, 1, sizeof(json) - 1, f);
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return 0;
+    }
+    long fsz = ftell(f);
+    if (fsz < 0 || fsz > (long)(512 * 1024)) {
+        fclose(f);
+        return 0;
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return 0;
+    }
+    char *json = (char *)malloc((size_t)fsz + 1);
+    if (!json) {
+        fclose(f);
+        return 0;
+    }
+    size_t len = fread(json, 1, (size_t)fsz, f);
     fclose(f);
     if (len == 0) {
+        free(json);
         return 0;
     }
     json[len] = 0;
@@ -1801,19 +1901,19 @@ static int OQ_LoadJsonConfig(const char *json_path) {
         Cvar_Set("oquake_star_send_to_address_after_minting", value);
         loaded = 1;
     }
-    /* Persisted session for autologin (beamedin_avatar + jwt_token). Fallback to old keys for compatibility. */
-    if ((OQ_ExtractJsonValue(json, "beamedin_avatar", value, sizeof(value)) || OQ_ExtractJsonValue(json, "saved_username", value, sizeof(value))) && value[0]) {
-        q_strlcpy(g_oq_saved_username, value, sizeof(g_oq_saved_username));
+    /* Persisted session for autologin (beamedin_avatar + jwt_token). Fallback to old keys for compatibility.
+     * jwt_token / refresh_token must not use value[256]: real JWTs are often 800+ bytes — truncation caused Unauthorized on every STAR call. */
+    if ((OQ_ExtractJsonValue(json, "beamedin_avatar", g_oq_saved_username, sizeof(g_oq_saved_username)) || OQ_ExtractJsonValue(json, "saved_username", g_oq_saved_username, sizeof(g_oq_saved_username))) && g_oq_saved_username[0]) {
         loaded = 1;
     }
-    if ((OQ_ExtractJsonValue(json, "jwt_token", value, sizeof(value)) || OQ_ExtractJsonValue(json, "saved_jwt", value, sizeof(value))) && value[0]) {
-        q_strlcpy(g_oq_saved_jwt, value, sizeof(g_oq_saved_jwt));
+    g_oq_saved_jwt[0] = '\0';
+    if (!OQ_ExtractJsonValue(json, "jwt_token", g_oq_saved_jwt, sizeof(g_oq_saved_jwt)))
+        OQ_ExtractJsonValue(json, "saved_jwt", g_oq_saved_jwt, sizeof(g_oq_saved_jwt));
+    if (g_oq_saved_jwt[0])
         loaded = 1;
-    }
-    if (OQ_ExtractJsonValue(json, "refresh_token", value, sizeof(value)) && value[0]) {
-        q_strlcpy(g_oq_saved_refresh_token, value, sizeof(g_oq_saved_refresh_token));
+    g_oq_saved_refresh_token[0] = '\0';
+    if (OQ_ExtractJsonValue(json, "refresh_token", g_oq_saved_refresh_token, sizeof(g_oq_saved_refresh_token)) && g_oq_saved_refresh_token[0])
         loaded = 1;
-    }
     /* Per-monster mint: mint_monster_oquake_dog, etc. Default 1 if key missing. */
     {
         int i, j;
@@ -1829,6 +1929,7 @@ static int OQ_LoadJsonConfig(const char *json_path) {
             loaded = 1;
         }
     }
+    free(json);
     return loaded;
 }
 
@@ -1972,6 +2073,83 @@ static int OQ_SaveJsonConfig(const char *json_path) {
     
     fclose(f);
     return 1;
+}
+
+/* Create oasisstar.json when no file exists (even if config.cfg alone satisfied config_loaded). */
+static void OQ_EnsureOasisstarJsonOnDisk(void) {
+    char path[512];
+    if (g_json_config_path[0]) {
+        FILE *t = fopen(g_json_config_path, "r");
+        if (t) {
+            fclose(t);
+            return;
+        }
+    }
+    if (OQ_FindConfigFile("oasisstar.json", path, sizeof(path))) {
+        FILE *t = fopen(path, "r");
+        if (t) {
+            fclose(t);
+            q_strlcpy(g_json_config_path, path, sizeof(g_json_config_path));
+            (void)OQ_LoadJsonConfig(path);
+            return;
+        }
+    }
+#ifdef _WIN32
+    {
+        char exe_path[MAX_PATH] = {0};
+        char exe_dir[MAX_PATH] = {0};
+        if (GetModuleFileNameA(NULL, exe_path, sizeof(exe_path))) {
+            char *last_slash = strrchr(exe_path, '\\');
+            if (last_slash) {
+                int dir_len = (int)(last_slash - exe_path);
+                if (dir_len > 0 && dir_len < (int)sizeof(exe_dir)) {
+                    memcpy(exe_dir, exe_path, (size_t)dir_len);
+                    exe_dir[dir_len] = 0;
+                    q_snprintf(path, sizeof(path), "%s\\oasisstar.json", exe_dir);
+                    if (OQ_SaveJsonConfig(path)) {
+                        q_strlcpy(g_json_config_path, path, sizeof(g_json_config_path));
+                        (void)OQ_LoadJsonConfig(path);
+                        Con_Printf("OQuake: Created default oasisstar.json: %s\n", path);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+#elif defined(__linux__)
+    {
+        char self[512];
+        ssize_t n = readlink("/proc/self/exe", self, sizeof(self) - 1);
+        if (n > 0) {
+            self[n] = 0;
+            {
+                char *slash = strrchr(self, '/');
+                if (slash) {
+                    *slash = 0;
+                    q_snprintf(path, sizeof(path), "%s/oasisstar.json", self);
+                    if (OQ_SaveJsonConfig(path)) {
+                        q_strlcpy(g_json_config_path, path, sizeof(g_json_config_path));
+                        (void)OQ_LoadJsonConfig(path);
+                        Con_Printf("OQuake: Created default oasisstar.json: %s\n", path);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+#endif
+    {
+        static const char *fallbacks[] = { "build/oasisstar.json", "oasisstar.json", NULL };
+        int i;
+        for (i = 0; fallbacks[i]; i++) {
+            if (OQ_SaveJsonConfig(fallbacks[i])) {
+                q_strlcpy(g_json_config_path, fallbacks[i], sizeof(g_json_config_path));
+                (void)OQ_LoadJsonConfig(fallbacks[i]);
+                Con_Printf("OQuake: Created default oasisstar.json: %s\n", fallbacks[i]);
+                return;
+            }
+        }
+    }
 }
 
 /* Get file modification time (Windows) */
@@ -2734,6 +2912,7 @@ void OQuake_STAR_Init(void) {
             extern void Cbuf_AddText(const char *text);
             Cbuf_AddText("wait 0.5; oasis_reload_config\n");
         }
+        OQ_EnsureOasisstarJsonOnDisk();
     }
 
     /* Load config: CVAR first, then env var, then default */
@@ -2776,11 +2955,16 @@ void OQuake_STAR_Init(void) {
             const char *star_url = oquake_star_api_url.string;
             if (oasis_url && oasis_url[0]) {
                 star_api_set_oasis_base_url(oasis_url);
-            } else if (g_oq_saved_jwt[0]) {
-                static int s_logged_oasis_missing;
-                if (!s_logged_oasis_missing) {
-                    s_logged_oasis_missing = 1;
-                    printf("OQuake STAR API: oasis_api_url not set; token refresh may fail. Add \"oasis_api_url\": \"http://localhost:5555\" to oasisstar.json for auto-renew.\n");
+            } else {
+                const char *oe = getenv("OASIS_WEB4_API_BASE_URL");
+                if (oe && oe[0])
+                    star_api_set_oasis_base_url(oe);
+                else if (g_oq_saved_jwt[0]) {
+                    static int s_logged_oasis_missing;
+                    if (!s_logged_oasis_missing) {
+                        s_logged_oasis_missing = 1;
+                        printf("OQuake STAR API: oasis_api_url not set; token refresh may fail. Add \"oasis_api_url\" to oasisstar.json or OASIS_WEB4_API_BASE_URL.\n");
+                    }
                 }
             }
             /* Local dev: if STAR API is localhost but OASIS is still production default, use local OASIS so refresh works. */
@@ -3476,6 +3660,26 @@ void OQuake_STAR_PollItems(void) {
     /* Run async completions (auth, inventory, use_item) every frame so e.g. "star beamin" finishes even when console is open. */
     star_sync_pump();
 
+    /* If async auth was started but callback never fired (hang, or star_sync_pump never runs e.g. missing host.c patch), wall-clock timeout. */
+    if (g_star_async_auth_pending) {
+        extern double realtime;
+        double elapsed = realtime - g_star_async_auth_start_realtime;
+        if (elapsed > OQ_BEAMIN_ASYNC_TIMEOUT_SEC) {
+            g_star_async_auth_pending = 0;
+            g_star_auth_timed_out = 1;  /* Ignore late callback from this attempt so retry can proceed */
+            star_sync_auth_force_reset();  /* Clear star_sync state so "star beamin" again is allowed */
+            {
+                char logb[512];
+                q_snprintf(logb, sizeof(logb),
+                    "[OQuake] Beamin: TIMEOUT after %.1fs — no main-thread auth callback (star_sync_pump never ran). Fix: OQuake_STAR_PollItems() must run every frame in vkQuake host.c after CL_ReadFromServer (BUILD_OQUAKE.sh unix patch or apply_oquake_to_vkquake.ps1). URIs can be correct; this is not a WEB4/WEB5 port issue.",
+                    elapsed);
+                star_api_log_to_file(logb);
+            }
+            Con_Printf("Beam-in failed: timeout (no response from server).\n");
+            OQ_SetToastMessage("Beam-in failed: timeout (no response from server).");
+        }
+    }
+
     /* When profile refresh (XP + active quest/objective) completed, restore tracker from cache and invalidate quest list so it refetches. */
     if (g_star_profile_loaded_pending) {
         g_star_profile_loaded_pending = 0;
@@ -3531,15 +3735,14 @@ void OQuake_STAR_PollItems(void) {
     /* Show STAR log messages in console when star debug is on (quests, XP refresh, monster kill, etc.). */
     {
         char log_buf[1024] = {0};
-        if (g_star_debug_logging) {
-            int i;
-            for (i = 0; i < 25; i++) {
-                if (!star_api_consume_console_log(log_buf, sizeof(log_buf)))
-                    break;
+        int i;
+        /* Never spin-drain unbounded logs in one frame; large bursts can stall the game loop. */
+        const int max_logs_per_frame = g_star_debug_logging ? 25 : 64;
+        for (i = 0; i < max_logs_per_frame; i++) {
+            if (!star_api_consume_console_log(log_buf, sizeof(log_buf)))
+                break;
+            if (g_star_debug_logging)
                 Con_Printf("[STAR] %s\n", log_buf);
-            }
-        } else {
-            while (star_api_consume_console_log(log_buf, sizeof(log_buf))) {}
         }
     }
 
@@ -3987,9 +4190,17 @@ void OQuake_STAR_Console_f(void) {
             Con_Printf("Beamin failed - init: %s\n", star_api_get_last_error());
             return;
         }
-        /* NFT minting and avatar auth use WEB4 OASIS API; set from oquake_oasis_api_url so mint goes to WEB4 not WEB5. */
-        if (oquake_oasis_api_url.string && oquake_oasis_api_url.string[0]) {
-            star_api_set_oasis_base_url(oquake_oasis_api_url.string);
+        /* SSO POST /api/avatar/authenticate goes to WEB4 (_oasisBaseUrl), not star_api_url (WEB5). Apply from game config when set. */
+        {
+            const char *oasis_apply = NULL;
+            if (oquake_oasis_api_url.string && oquake_oasis_api_url.string[0])
+                oasis_apply = oquake_oasis_api_url.string;
+            else
+                oasis_apply = getenv("OASIS_WEB4_API_BASE_URL");
+            if (oasis_apply && oasis_apply[0])
+                star_api_set_oasis_base_url(oasis_apply);
+            else
+                star_api_log_to_file("[OQuake] Beamin: no oasis_api_url in cvars/json and no OASIS_WEB4_API_BASE_URL; STAR Init may still set WEB4 (e.g. localhost STAR :7777 -> OASIS :8888).");
         }
         /* Load username: runtime -> CVAR -> env */
         const char* username = runtime_user;
@@ -4014,7 +4225,21 @@ void OQuake_STAR_Console_f(void) {
                 Con_Printf("Authentication already in progress. Please wait...\n");
                 return;
             }
+            g_star_auth_timed_out = 0;
+            {
+                extern double realtime;
+                g_star_async_auth_start_realtime = realtime;
+            }
             star_sync_auth_start(username, password, OQ_OnAuthDone, NULL);
+            g_star_async_auth_pending = 1;
+            {
+                char logb[640];
+                const char *ou = (oquake_oasis_api_url.string && oquake_oasis_api_url.string[0]) ? oquake_oasis_api_url.string : "(not set)";
+                q_snprintf(logb, sizeof(logb),
+                    "[OQuake] Beamin: async SSO user=%s star_api_url=%s oasis_api_url=%s (wall timeout %.0fs; HttpClient %ds). WEB4 POST /api/avatar/authenticate uses oasis, not star_api_url.",
+                    username, api_url, ou, OQ_BEAMIN_ASYNC_TIMEOUT_SEC, g_star_config.timeout_seconds > 0 ? g_star_config.timeout_seconds : 30);
+                star_api_log_to_file(logb);
+            }
             Con_Printf("Authenticating... Please wait...\n");
             if (runtime_user) Cvar_Set("oquake_star_username", runtime_user);
             if (runtime_pass) Cvar_Set("oquake_star_password", runtime_pass);
@@ -4262,10 +4487,9 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
     int visible_end;
     char line[512];
 
-    if (!g_star_initialized || !cbx)
-        return;
+    /* When not beamed in we still draw the inventory popup (empty, with "Not beamed in" / "Offline - use STAR BEAMIN") so I key always shows the panel. */
     /* Report level time to STAR for quest time-limit objectives (same clock as scoreboard TAB). ~10s throttle. */
-    if (sv.active && !cls.demoplayback) {
+    if (g_star_initialized && sv.active && !cls.demoplayback) {
         static float s_oq_quest_level_time_last = -1e9f;
         float t = (float)cl.time;
         if (t - s_oq_quest_level_time_last >= 10.f) {
@@ -4378,6 +4602,9 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             if (!keydown[s_o_key]) g_quest_o_key_was_down = false;
         }
     }
+
+    /* Update movement-key capture whenever either popup is open (so WASD/arrows are disabled on Linux even if engine cl_input.c was not patched). */
+    OQ_UpdatePopupInputCapture();
 
     if (g_inventory_open)
         OQ_PollInventoryHotkeys();
@@ -4498,7 +4725,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
 
     /* Quest popup (Q key): filter by status (B/N/M), list nav (Home/End/PgUp/PgDn), selection (Up/Down), Enter = Start or Set tracker. */
     if (g_quest_popup_open) {
-        static char quest_buf[16384];
+        static char quest_buf[65536];
         static char q_id[OQ_QUEST_MAX][64];
         static char q_name[OQ_QUEST_MAX][128];
         static char q_desc[OQ_QUEST_MAX][256];
@@ -4508,7 +4735,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         static int q_prereq_count[OQ_QUEST_MAX];
         static char q_obj_id[OQ_QUEST_MAX][OQ_OBJ_MAX][64];
         static char q_obj_desc[OQ_QUEST_MAX][OQ_OBJ_MAX][128];
-        static int q_obj_done[OQ_QUEST_MAX][OQ_OBJ_MAX];
+        static int q_obj_done[OQ_QUEST_MAX][OQ_OBJ_MAX] __attribute__((unused));
         static int q_obj_count[OQ_QUEST_MAX];
         static int q_count;
         static int q_filtered_indices[OQ_QUEST_MAX];
@@ -4642,21 +4869,21 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             int si;
             for (si = 0; si < q_count; si++) {
                 if (strcmp(q_id[si], g_quest_tracker_id) == 0) {
-                    q_strlcpy(g_quest_tracker_name, q_name[si] ? q_name[si] : "", sizeof(g_quest_tracker_name));
+                    q_strlcpy(g_quest_tracker_name, q_name[si][0] ? q_name[si] : "", sizeof(g_quest_tracker_name));
                     break;
                 }
             }
         }
 
         /* Drill mode: when g_quest_drill_parent_id is set, left list shows that quest's children (objectives + sub-quests). */
-        static char drill_obj_buf[4096];
-        static char drill_sub_buf[4096];
+        static char drill_obj_buf[16384];
+        static char drill_sub_buf[16384];
         static char drill_q_id[OQ_QUEST_MAX][64];
         static char drill_q_name[OQ_QUEST_MAX][128];
         static char drill_q_desc[OQ_QUEST_MAX][256];
         static char drill_q_status[OQ_QUEST_MAX][24];
         static char drill_q_pct[OQ_QUEST_MAX][8];
-        static int drill_q_is_subquest[OQ_QUEST_MAX];
+        static int drill_q_is_subquest[OQ_QUEST_MAX] __attribute__((unused));
         static int drill_q_count;
         static int drill_q_filtered_indices[OQ_QUEST_MAX];
         static int drill_q_filtered_count;
@@ -4738,7 +4965,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             if (g_quest_tracker_id[0] && !g_quest_tracker_name[0]) {
                 for (di = 0; di < drill_q_count; di++) {
                     if (strcmp(drill_q_id[di], g_quest_tracker_id) == 0) {
-                        q_strlcpy(g_quest_tracker_name, drill_q_name[di] ? drill_q_name[di] : "", sizeof(g_quest_tracker_name));
+                        q_strlcpy(g_quest_tracker_name, drill_q_name[di][0] ? drill_q_name[di] : "", sizeof(g_quest_tracker_name));
                         break;
                     }
                 }
@@ -4832,9 +5059,9 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         }
 
         /* Right panel: prereqs and objectives+sub-quests from API for selected quest. Objectives and sub-quests merged into one list; sub-quests get "(SubQuest)" suffix. */
-        static char prereq_buf[4096];
-        static char objectives_buf[4096];
-        static char subquest_buf[4096];
+        static char prereq_buf[16384];
+        static char objectives_buf[16384];
+        static char subquest_buf[16384];
         static char pr_id[OQ_LINKS_MAX][64];
         static char pr_name[OQ_LINKS_MAX][128];
         static char pr_desc[OQ_LINKS_MAX][256];
@@ -4847,9 +5074,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         static char sq_name[OQ_LINKS_MAX][128];
         static char sq_desc[OQ_LINKS_MAX][256];
         static int sq_count;
-#ifdef STAR_API_HAS_QUEST_OBJECTIVES_CACHE_VERSION
         static int s_quest_objectives_cache_version = -1;
-#endif
         pr_count = 0;
         obj_count = 0;
         sq_count = 0;
@@ -4858,7 +5083,6 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
             if (nr > 0) prereq_buf[nr] = '\0';
             int no = star_api_get_quest_objectives_string(panel_quest_id, objectives_buf, sizeof(objectives_buf));
             if (no > 0) objectives_buf[no] = '\0';
-#ifdef STAR_API_HAS_QUEST_OBJECTIVES_CACHE_VERSION
             /* When objectives cache version changes (on-demand fetch merged), re-fetch so the list refreshes immediately. */
             {
                 int obj_ver = star_api_get_quest_objectives_cache_version();
@@ -4868,7 +5092,6 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                     if (no > 0) objectives_buf[no] = '\0';
                 }
             }
-#endif
             int ns = star_api_get_quest_sub_quests_string(panel_quest_id, subquest_buf, sizeof(subquest_buf));
             if (ns > 0) subquest_buf[ns] = '\0';
             /* Parse prereq_buf: lines "Q\tid\tname\tdesc\tstatus\tpct" */
@@ -4998,7 +5221,7 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                     int log_max = q_count > 24 ? 24 : q_count;
                     int ii;
                     for (ii = 0; ii < log_max; ii++)
-                        OQ_StarDebugLog("  [%d] id=%s name=%.60s status=%s", ii, q_id[ii], q_name[ii] ? q_name[ii] : "(null)", q_status[ii] ? q_status[ii] : "(null)");
+                        OQ_StarDebugLog("  [%d] id=%s name=%.60s status=%s", ii, q_id[ii], q_name[ii][0] ? q_name[ii] : "(null)", q_status[ii][0] ? q_status[ii] : "(null)");
                 } else if (n > 20) {
                     char prev[420];
                     int pi = 0;
@@ -5150,11 +5373,11 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                                         g_quest_tracker_objective_index = 0;
                                     }
                                     q_strlcpy(g_quest_tracker_id, new_quest_id, sizeof(g_quest_tracker_id));
-                                    q_strlcpy(g_quest_tracker_name, drill_q_name[di] ? drill_q_name[di] : "", sizeof(g_quest_tracker_name));
+                                    q_strlcpy(g_quest_tracker_name, drill_q_name[di][0] ? drill_q_name[di] : "", sizeof(g_quest_tracker_name));
                                     g_quest_tracker_show = 1;
                                     {
                                         static char log_buf[512];
-                                        const char* qn = drill_q_name[di] && drill_q_name[di][0] ? drill_q_name[di] : "(none)";
+                                        const char* qn = drill_q_name[di][0] ? drill_q_name[di] : "(none)";
                                         q_snprintf(log_buf, sizeof(log_buf), "[Quest] SAVE (Enter on drill quest) quest_id=%s objective_id=%s quest_name=%s", g_quest_tracker_id, g_quest_tracker_active_objective_id, qn);
                                         star_api_log_to_file(log_buf);
                                     }
@@ -5185,11 +5408,11 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                                         g_quest_tracker_objective_index = 0;
                                     }
                                     q_strlcpy(g_quest_tracker_id, new_quest_id, sizeof(g_quest_tracker_id));
-                                    q_strlcpy(g_quest_tracker_name, q_name[idx] ? q_name[idx] : "", sizeof(g_quest_tracker_name));
+                                    q_strlcpy(g_quest_tracker_name, q_name[idx][0] ? q_name[idx] : "", sizeof(g_quest_tracker_name));
                                     g_quest_tracker_show = 1;
                                     {
                                         static char log_buf[512];
-                                        const char* qn = q_name[idx] && q_name[idx][0] ? q_name[idx] : "(none)";
+                                        const char* qn = q_name[idx][0] ? q_name[idx] : "(none)";
                                         q_snprintf(log_buf, sizeof(log_buf), "[Quest] SAVE (Enter on top-level quest) quest_id=%s objective_id=%s quest_name=%s", g_quest_tracker_id, g_quest_tracker_active_objective_id, qn);
                                         star_api_log_to_file(log_buf);
                                     }
@@ -5205,9 +5428,12 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
         /* Toggles: 1=Not Started, 2=In Progress, 3=Completed */
         {
             static int s_kb = -2, s_kn = -2, s_km = -2;
-            if (s_kb == -2) s_kb = Key_StringToKeynum("b"); if (s_kb < 0) s_kb = 'b';
-            if (s_kn == -2) s_kn = Key_StringToKeynum("n"); if (s_kn < 0) s_kn = 'n';
-            if (s_km == -2) s_km = Key_StringToKeynum("m"); if (s_km < 0) s_km = 'm';
+            if (s_kb == -2) s_kb = Key_StringToKeynum("b");
+            if (s_kb < 0) s_kb = 'b';
+            if (s_kn == -2) s_kn = Key_StringToKeynum("n");
+            if (s_kn < 0) s_kn = 'n';
+            if (s_km == -2) s_km = Key_StringToKeynum("m");
+            if (s_km < 0) s_km = 'm';
             if (OQ_KeyPressed(s_kb)) g_quest_filter_not_started = !g_quest_filter_not_started;
             if (OQ_KeyPressed(s_kn)) g_quest_filter_in_progress = !g_quest_filter_in_progress;
             if (OQ_KeyPressed(s_km)) g_quest_filter_completed = !g_quest_filter_completed;
@@ -5327,14 +5553,14 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                     else
                         status_str = status_str[0] ? status_str : "-";
                     q_strlcpy(status_display, status_str, sizeof(status_display));
-                    q_strlcpy(name_buf, drill_q_name[idx] ? drill_q_name[idx] : "-", sizeof(name_buf));
+                    q_strlcpy(name_buf, drill_q_name[idx][0] ? drill_q_name[idx] : "-", sizeof(name_buf));
                     if ((int)strlen(name_buf) > col1_chars - 2) {
                         name_buf[col1_chars - 3] = '.';
                         name_buf[col1_chars - 2] = '.';
                         name_buf[col1_chars - 1] = '\0';
                     }
                     Draw_String(cbx, col1_x, dy, name_buf);
-                    q_snprintf(name_buf, sizeof(name_buf), "%s%%", drill_q_pct[idx] ? drill_q_pct[idx] : "0");
+                    q_snprintf(name_buf, sizeof(name_buf), "%s%%", drill_q_pct[idx][0] ? drill_q_pct[idx] : "0");
                     Draw_String(cbx, col2_x, dy, name_buf);
                     Draw_String(cbx, col3_x, dy, status_display);
                 } else {
@@ -5354,14 +5580,14 @@ void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx) {
                     else
                         status_str = status_str[0] ? status_str : "-";
                     q_strlcpy(status_display, status_str, sizeof(status_display));
-                    q_strlcpy(name_buf, q_name[idx] ? q_name[idx] : "-", sizeof(name_buf));
+                    q_strlcpy(name_buf, q_name[idx][0] ? q_name[idx] : "-", sizeof(name_buf));
                     if ((int)strlen(name_buf) > col1_chars - 2) {
                         name_buf[col1_chars - 3] = '.';
                         name_buf[col1_chars - 2] = '.';
                         name_buf[col1_chars - 1] = '\0';
                     }
                     Draw_String(cbx, col1_x, dy, name_buf);
-                    q_snprintf(name_buf, sizeof(name_buf), "%s%%", q_pct[idx] ? q_pct[idx] : "0");
+                    q_snprintf(name_buf, sizeof(name_buf), "%s%%", q_pct[idx][0] ? q_pct[idx] : "0");
                     Draw_String(cbx, col2_x, dy, name_buf);
                     Draw_String(cbx, col3_x, dy, status_display);
                 }
@@ -5569,108 +5795,137 @@ void OQuake_STAR_DrawQuestTracker(cb_context_t* cbx) {
             g_quest_tracker_name[nr] = '\0';
         else
             g_quest_tracker_name[0] = '\0';
-        /* Fallback: parse from top-level quest list string if API did not return name yet. */
-        if (g_quest_tracker_name[0] == '\0') {
-            static char qlist_buf[4096];
-            int nq = star_api_get_top_level_quests_string(qlist_buf, sizeof(qlist_buf));
-            if (nq > 0 && nq < (int)sizeof(qlist_buf)) qlist_buf[nq] = '\0';
-            else qlist_buf[0] = '\0';
-            if (qlist_buf[0] && strstr(qlist_buf, "Loading...") == NULL) {
-                const char* line = qlist_buf;
-                while (line[0]) {
-                    const char* eol = strchr(line, '\n');
-                    size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
-                    if (line_len >= 3 && line[0] == 'Q' && line[1] == '\t') {
-                        const char* col0 = line + 2;
-                        const char* col1 = (const char*)memchr(col0, '\t', line_len - 2);
-                        if (col1 && (int)(col1 - col0) < 63) {
-                            char id[64];
-                            int len = (int)(col1 - col0);
-                            if (len >= 63) len = 62;
-                            memcpy(id, col0, (size_t)len);
-                            id[len] = '\0';
-                            if (q_strcasecmp(id, g_quest_tracker_id) == 0 && col1 + 1 < line + line_len) {
-                                const char* name_start = col1 + 1;
-                                const char* name_end = (const char*)memchr(name_start, '\t', (size_t)((line + line_len) - name_start));
-                                if (!name_end) name_end = line + line_len;
-                                len = (int)(name_end - name_start);
-                                if (len > 0 && len < (int)sizeof(g_quest_tracker_name)) {
-                                    memcpy(g_quest_tracker_name, name_start, (size_t)len);
-                                    g_quest_tracker_name[len] = '\0';
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    line = eol ? eol + 1 : line + line_len;
-                }
-            }
-        }
     }
 
     if (strcmp(g_quest_tracker_id, g_quest_tracker_last_n_obj_id) != 0)
         g_quest_tracker_last_n_obj = 0;
 
     static char tr_buf[1024];
-    int nr = star_api_get_quest_tracker_objectives_string(g_quest_tracker_id, tr_buf, sizeof(tr_buf));
-    if (nr > 0 && nr < (int)sizeof(tr_buf)) tr_buf[nr] = '\0';
-    else tr_buf[0] = '\0';
-
+    static char tr_cached[1024];
+    static char tr_cached_id[64];
+    static int tr_cached_n_obj = 0;
+    static int tr_cached_active_idx = 0;
+    static double tr_next_fetch_time = 0.0;
     int n_obj = 0;
-    if (tr_buf[0]) {
-        const char* p = tr_buf;
-        while (*p) { if (*p == '\n') n_obj++; p++; }
-        if (nr > 0 && p > tr_buf && tr_buf[nr - 1] != '\n') n_obj++;
-    }
+    int active_idx = 0;
+    qboolean should_refetch = false;
+    if (strcmp(g_quest_tracker_id, tr_cached_id) != 0)
+        should_refetch = true;
+    if (realtime >= tr_next_fetch_time)
+        should_refetch = true;
+    if (g_quest_tracker_needs_refresh)
+        should_refetch = true;
+    if (should_refetch) {
+        int nr = star_api_get_quest_tracker_objectives_string(g_quest_tracker_id, tr_buf, sizeof(tr_buf));
+        if (nr > 0 && nr < (int)sizeof(tr_buf)) tr_buf[nr] = '\0';
+        else tr_buf[0] = '\0';
 
-    /* Fallback: if tracker API returned no lines (e.g. stub or cache not ready), use quest objectives string and show objective names */
-    if (n_obj == 0) {
-        static char obj_buf[1024];
-        int no = star_api_get_quest_objectives_string(g_quest_tracker_id, obj_buf, sizeof(obj_buf));
-        if (no > 0 && no < (int)sizeof(obj_buf)) obj_buf[no] = '\0';
-        else obj_buf[0] = '\0';
-        if (obj_buf[0]) {
-            char* out = tr_buf;
-            size_t out_left = sizeof(tr_buf);
-            const char* line = obj_buf;
-            n_obj = 0;
-            while (line[0] && out_left > 1) {
-                const char* eol = strchr(line, '\n');
-                size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
-                /* Format: Q\tid\tname\tdesc\tstatus\tpct - take column 2 (name) or 3 (desc) for display */
-                if (line_len >= 3 && (line[0] == 'Q' || line[0] == 'O') && line[1] == '\t') {
-                    const char* col0 = line + 2;
-                    const char* col1 = (const char*)memchr(col0, '\t', line_len - (col0 - line));
-                    const char* col2 = col1 && col1 + 1 < line + line_len ? col1 + 1 : col0;
-                    const char* col2_end = col2;
-                    if (col2_end < line + line_len) {
-                        col2_end = (const char*)memchr(col2, '\t', (size_t)((line + line_len) - col2));
-                        if (!col2_end) col2_end = line + line_len;
-                    }
-                    const char* col3 = (col2_end && col2_end < line + line_len) ? col2_end + 1 : col2;
-                    const char* col3_end = col3;
-                    if (col3 < line + line_len) {
-                        col3_end = (const char*)memchr(col3, '\t', (size_t)((line + line_len) - col3));
-                        if (!col3_end) col3_end = line + line_len;
-                    }
-                    size_t name_len = (size_t)(col2_end - col2);
-                    size_t desc_len = (size_t)(col3_end - col3);
-                    const char* use = col2;
-                    size_t use_len = name_len;
-                    if (use_len == 0 && desc_len > 0) { use = col3; use_len = desc_len; }
-                    if (use_len > 0 && use_len < out_left - 1) {
-                        if (n_obj > 0) { *out++ = '\n'; out_left--; }
-                        if (use_len >= out_left) use_len = out_left - 1;
-                        memcpy(out, use, use_len);
-                        out += use_len;
-                        out_left -= use_len;
-                        n_obj++;
-                    }
-                }
-                line = eol ? eol + 1 : line + line_len;
-            }
-            if (out_left > 0) *out = '\0';
+        if (tr_buf[0]) {
+            const char* p = tr_buf;
+            while (*p) { if (*p == '\n') n_obj++; p++; }
+            if (nr > 0 && p > tr_buf && tr_buf[nr - 1] != '\n') n_obj++;
         }
+
+        /* Fallback: if tracker API returned no lines, use quest objectives string and show objective names. */
+        if (n_obj == 0) {
+            static char obj_buf[1024];
+            int no = star_api_get_quest_objectives_string(g_quest_tracker_id, obj_buf, sizeof(obj_buf));
+            if (no > 0 && no < (int)sizeof(obj_buf)) obj_buf[no] = '\0';
+            else obj_buf[0] = '\0';
+            if (obj_buf[0]) {
+                char* out = tr_buf;
+                size_t out_left = sizeof(tr_buf);
+                const char* line = obj_buf;
+                n_obj = 0;
+                while (line[0] && out_left > 1) {
+                    const char* eol = strchr(line, '\n');
+                    size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
+                    if (line_len >= 3 && (line[0] == 'Q' || line[0] == 'O') && line[1] == '\t') {
+                        const char* col0 = line + 2;
+                        const char* col1 = (const char*)memchr(col0, '\t', line_len - (col0 - line));
+                        const char* col2 = col1 && col1 + 1 < line + line_len ? col1 + 1 : col0;
+                        const char* col2_end = col2;
+                        if (col2_end < line + line_len) {
+                            col2_end = (const char*)memchr(col2, '\t', (size_t)((line + line_len) - col2));
+                            if (!col2_end) col2_end = line + line_len;
+                        }
+                        const char* col3 = (col2_end && col2_end < line + line_len) ? col2_end + 1 : col2;
+                        const char* col3_end = col3;
+                        if (col3 < line + line_len) {
+                            col3_end = (const char*)memchr(col3, '\t', (size_t)((line + line_len) - col3));
+                            if (!col3_end) col3_end = line + line_len;
+                        }
+                        size_t name_len = (size_t)(col2_end - col2);
+                        size_t desc_len = (size_t)(col3_end - col3);
+                        const char* use = col2;
+                        size_t use_len = name_len;
+                        if (use_len == 0 && desc_len > 0) { use = col3; use_len = desc_len; }
+                        if (use_len > 0 && use_len < out_left - 1) {
+                            if (n_obj > 0) { *out++ = '\n'; out_left--; }
+                            if (use_len >= out_left) use_len = out_left - 1;
+                            memcpy(out, use, use_len);
+                            out += use_len;
+                            out_left -= use_len;
+                            n_obj++;
+                        }
+                    }
+                    line = eol ? eol + 1 : line + line_len;
+                }
+                if (out_left > 0) *out = '\0';
+            }
+        }
+
+        if (g_quest_tracker_active_objective_id[0] && g_quest_tracker_id[0] &&
+            (g_quest_tracker_active_display_index < 0 || (n_obj > 0 && g_quest_tracker_active_display_index >= n_obj))) {
+            static char obuf[1024];
+            int no = star_api_get_quest_objectives_string(g_quest_tracker_id, obuf, sizeof(obuf));
+            if (no > 0 && no < (int)sizeof(obuf)) obuf[no] = '\0';
+            else obuf[0] = '\0';
+            if (obuf[0]) {
+                const char* line = obuf;
+                int idx = 0;
+                while (line[0]) {
+                    const char* eol = strchr(line, '\n');
+                    size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
+                    if (line_len >= 3 && (line[0] == 'O' || line[0] == 'Q') && line[1] == '\t') {
+                        const char* col0 = line + 2;
+                        const char* col1 = (const char*)memchr(col0, '\t', line_len - 2);
+                        if (col1 && (int)(col1 - col0) < 63) {
+                            char oid[64];
+                            int len = (int)(col1 - col0);
+                            if (len >= 63) len = 62;
+                            memcpy(oid, col0, (size_t)len);
+                            oid[len] = '\0';
+                            if (strcmp(oid, g_quest_tracker_active_objective_id) == 0) {
+                                g_quest_tracker_active_display_index = idx;
+                                g_quest_tracker_objective_index = idx;
+                                break;
+                            }
+                        }
+                        idx++;
+                    }
+                    line = eol ? eol + 1 : line + line_len;
+                }
+            }
+        }
+
+        if (g_quest_tracker_active_objective_id[0] && g_quest_tracker_active_display_index >= 0 && g_quest_tracker_active_display_index < n_obj)
+            active_idx = g_quest_tracker_active_display_index;
+        else {
+            active_idx = star_api_get_quest_tracker_active_objective_index(g_quest_tracker_id);
+            if (active_idx < 0) active_idx = 0;
+            if (active_idx >= n_obj && n_obj > 0) active_idx = n_obj - 1;
+        }
+
+        q_strlcpy(tr_cached, tr_buf, sizeof(tr_cached));
+        q_strlcpy(tr_cached_id, g_quest_tracker_id, sizeof(tr_cached_id));
+        tr_cached_n_obj = n_obj;
+        tr_cached_active_idx = active_idx;
+        tr_next_fetch_time = realtime + 0.20;
+    } else {
+        q_strlcpy(tr_buf, tr_cached, sizeof(tr_buf));
+        n_obj = tr_cached_n_obj;
+        active_idx = tr_cached_active_idx;
     }
 
     if (n_obj > 0) {
@@ -5678,53 +5933,9 @@ void OQuake_STAR_DrawQuestTracker(cb_context_t* cbx) {
         q_strlcpy(g_quest_tracker_last_n_obj_id, g_quest_tracker_id, sizeof(g_quest_tracker_last_n_obj_id));
     }
 
-    /* When tracker was restored from profile (active objective id set, display index not), resolve index from objectives list */
-    if (g_quest_tracker_active_objective_id[0] && g_quest_tracker_id[0] &&
-        (g_quest_tracker_active_display_index < 0 || (n_obj > 0 && g_quest_tracker_active_display_index >= n_obj))) {
-        static char obuf[1024];
-        int no = star_api_get_quest_objectives_string(g_quest_tracker_id, obuf, sizeof(obuf));
-        if (no > 0 && no < (int)sizeof(obuf)) obuf[no] = '\0';
-        else obuf[0] = '\0';
-        if (obuf[0]) {
-            const char* line = obuf;
-            int idx = 0;
-            while (line[0]) {
-                const char* eol = strchr(line, '\n');
-                size_t line_len = eol ? (size_t)(eol - line) : strlen(line);
-                if (line_len >= 3 && (line[0] == 'O' || line[0] == 'Q') && line[1] == '\t') {
-                    const char* col0 = line + 2;
-                    const char* col1 = (const char*)memchr(col0, '\t', line_len - 2);
-                    if (col1 && (int)(col1 - col0) < 63) {
-                        char oid[64];
-                        int len = (int)(col1 - col0);
-                        if (len >= 63) len = 62;
-                        memcpy(oid, col0, (size_t)len);
-                        oid[len] = '\0';
-                        if (strcmp(oid, g_quest_tracker_active_objective_id) == 0) {
-                            g_quest_tracker_active_display_index = idx;
-                            g_quest_tracker_objective_index = idx;
-                            break;
-                        }
-                    }
-                    idx++;
-                }
-                line = eol ? eol + 1 : line + line_len;
-            }
-        }
-    }
-
     int disp_idx = g_quest_tracker_objective_index;
     if (disp_idx > n_obj + 1) disp_idx = n_obj + 1;
     if (disp_idx == n_obj + 1) return;  /* Hide */
-
-    int active_idx;
-    if (g_quest_tracker_active_objective_id[0] && g_quest_tracker_active_display_index >= 0 && g_quest_tracker_active_display_index < n_obj)
-        active_idx = g_quest_tracker_active_display_index;
-    else {
-        active_idx = star_api_get_quest_tracker_active_objective_index(g_quest_tracker_id);
-        if (active_idx < 0) active_idx = 0;
-        if (active_idx >= n_obj && n_obj > 0) active_idx = n_obj - 1;
-    }
 
     int y = 8;
     if (disp_idx >= n_obj) {

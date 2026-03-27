@@ -1453,12 +1453,12 @@ typedef struct
 	unsigned	sortkey;
 } surf_sort;
 
-static int prepare_3d_interleave (int x) // bin x..xabcdefghij --> 0000a00b00c00d00e00f00g00h00i00j
+static unsigned prepare_3d_interleave (unsigned x) // bin x..xabcdefghij --> 0000a00b00c00d00e00f00g00h00i00j
 {
-	x = (x | (x << 16)) & 0x030000FF;
-	x = (x | (x << 8)) & 0x0300F00F;
-	x = (x | (x << 4)) & 0x030C30C3;
-	x = (x | (x << 2)) & 0x09249249;
+	x = (x | (x << 16)) & 0x030000FFu;
+	x = (x | (x << 8)) & 0x0300F00Fu;
+	x = (x | (x << 4)) & 0x030C30C3u;
+	x = (x | (x << 2)) & 0x09249249u;
 	return x;
 }
 
@@ -1502,9 +1502,9 @@ static void GL_SortSurfaces (void)
 					vec = m->vertexes[r_pedge->v[1]].position;
 				}
 
-				int x = prepare_3d_interleave (((int)(vec[0] * scale_x)) + (1 << 9));
-				int y = prepare_3d_interleave (((int)(vec[1] * scale_y)) + (1 << 9));
-				int z = prepare_3d_interleave (((int)(vec[2] * scale_z)) + (1 << 9));
+				unsigned x = prepare_3d_interleave ((unsigned)(((int)(vec[0] * scale_x)) + (1 << 9)));
+				unsigned y = prepare_3d_interleave ((unsigned)(((int)(vec[1] * scale_y)) + (1 << 9)));
+				unsigned z = prepare_3d_interleave ((unsigned)(((int)(vec[2] * scale_z)) + (1 << 9)));
 
 				unsigned last_lightstyle;
 				for (last_lightstyle = 0; last_lightstyle < 3; last_lightstyle++) // saturate at 3, not 4
