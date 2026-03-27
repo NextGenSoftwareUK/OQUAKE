@@ -650,7 +650,7 @@ static void R_ChainVisSurfaces_TransparentWater ()
 	for (int i = 0; i < cl.worldmodel->used_water_surfs; i++)
 	{
 		int j = cl.worldmodel->water_surfs[i];
-		if (surfvis[j / 32] & 1 << j % 32 && !R_BackFaceCull (&cl.worldmodel->surfaces[j]))
+		if ((surfvis[j / 32] & (1U << (j % 32))) && !R_BackFaceCull (&cl.worldmodel->surfaces[j]))
 			R_ChainSurface (&cl.worldmodel->surfaces[j], chain_world);
 	}
 }
