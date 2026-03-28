@@ -322,6 +322,37 @@ static int OQ_ContainsNoCase(const char* haystack, const char* needle) {
     return 0;
 }
 
+/* Cross-game canonical ids (Doom / beam-in rows). Quake uses legacy display names when *adding*; helpers below still match these when reading. */
+#define OQ_OASIS_MEGAHEALTH       "OASIS.MegaHealth"
+#define OQ_OASIS_MEGAHEALTH_ARMOR "OASIS.MegaHealthArmor"
+#define OQ_OASIS_QUAD_DAMAGE      "OASIS.QuadDamage"
+#define OQ_OASIS_INVULN           "OASIS.Invulnerability"
+#define OQ_OASIS_ENV_SUIT         "OASIS.EnvironmentSuit"
+#define OQ_OASIS_RING_SHADOWS     "OASIS.RingShadows"
+/* Player-visible STAR row names for Quake-native pickups (inventory overlay). */
+#define OQ_QUAKE_NAME_MEGAHEALTH          "Megahealth"
+#define OQ_QUAKE_NAME_QUAD_DAMAGE         "Quad Damage"
+#define OQ_QUAKE_NAME_PENTAGRAM           "Pentagram of Protection"
+#define OQ_QUAKE_NAME_BIOSUIT             "Biosuit"
+#define OQ_QUAKE_NAME_RING_OF_SHADOWS     "Ring of Shadows"
+
+static int OQ_IsOasisMegaHealthArmorName(const char* n) {
+    return n && OQ_ContainsNoCase(n, "OASIS.MegaHealthArmor");
+}
+/** Mega-health row only (Quake megahealth or Doom soul-equivalent), not megasphere combo. */
+static int OQ_IsMegaHealthStyleInventoryName(const char* n) {
+    if (!n || OQ_IsOasisMegaHealthArmorName(n)) return 0;
+    if (OQ_ContainsNoCase(n, "OASIS.MegaHealth")) return 1;
+    if (OQ_ContainsNoCase(n, "Megahealth")) return 1;
+    return 0;
+}
+static int OQ_IsOasisCanonicalPowerupInventoryName(const char* name) {
+    if (!name || !OQ_ContainsNoCase(name, "OASIS.")) return 0;
+    return OQ_ContainsNoCase(name, "MegaHealth") || OQ_ContainsNoCase(name, "QuadDamage")
+        || OQ_ContainsNoCase(name, "Invulnerability") || OQ_ContainsNoCase(name, "EnvironmentSuit")
+        || OQ_ContainsNoCase(name, "RingShadows");
+}
+
 /** Called from sync worker after each star_api_add_item; logs result to console only when star debug is on. */
 static void OQ_AddItemLogCb(const char* item_name, int success, const char* error_message, void* user_data) {
     (void)user_data;
@@ -375,6 +406,9 @@ cvar_t oasis_star_beam_face = {"oasis_star_beam_face", "1", CVAR_ARCHIVE};
 cvar_t oquake_star_config_file = {"oquake_star_config_file", "json", CVAR_ARCHIVE}; /* "json" or "cfg" - which config file to use */
 cvar_t oquake_star_api_url = {"oquake_star_api_url", "https://oasisweb4.com/api/star", CVAR_ARCHIVE};
 cvar_t oquake_oasis_api_url = {"oquake_oasis_api_url", "https://oasisweb4.com", CVAR_ARCHIVE};
+/* "remote" = HTTP WEB5/WEB4 (default). "native" = in-process OASIS (requires star_api built with HyperDrive; default DLL fails init with clear error). */
+cvar_t oquake_star_transport = {"oquake_star_transport", "remote", CVAR_ARCHIVE};
+cvar_t oquake_oasis_dna_path = {"oquake_oasis_dna_path", "", CVAR_ARCHIVE};
 cvar_t oquake_star_username = {"oquake_star_username", "", 0};
 cvar_t oquake_star_password = {"oquake_star_password", "", 0};
 cvar_t oquake_star_api_key = {"oquake_star_api_key", "", 0};
@@ -1041,9 +1075,18 @@ static int OQ_WouldUseExceedMax(const char* name, const char* type, const char* 
     cur_h = cl.stats[STAT_HEALTH];
     cur_a = cl.stats[STAT_ARMOR];
     amount_from_desc = OQ_ParseAmountFromDescription(description);
+    /* Doom megasphere equivalent: +200 HP and +200 armor in one STAR row */
+    if (OQ_IsOasisMegaHealthArmorName(name) && type && OQ_ContainsNoCase(type, "powerup")) {
+        const int dh = 200, da = 200;
+        if (cur_h >= max_h) { *toast_msg = "You cannot use this because you are already at max health."; return 1; }
+        if (cur_h + dh > max_h) { *toast_msg = "You cannot use this because you are already at max health."; return 1; }
+        if (cur_a >= max_a) { *toast_msg = "You cannot use this because you are already at max armor."; return 1; }
+        if (cur_a + da > max_a) { *toast_msg = "You cannot use this because you are already at max armor."; return 1; }
+        return 0;
+    }
     {
         int is_health = type && (OQ_ContainsNoCase(type, "health") || OQ_ContainsNoCase(type, "powerup"));
-        int is_health_item = name && (OQ_ContainsNoCase(name, "Megahealth") || OQ_ContainsNoCase(name, "Health") || OQ_ContainsNoCase(name, "Stimpack"));
+        int is_health_item = name && (OQ_IsMegaHealthStyleInventoryName(name) || OQ_ContainsNoCase(name, "Health") || OQ_ContainsNoCase(name, "Stimpack"));
         if (is_health && is_health_item) {
             int amount = (amount_from_desc >= 0) ? amount_from_desc : (OQ_ContainsNoCase(name, "Mega") ? 100 : (OQ_ContainsNoCase(name, "Stimpack") ? 10 : 25));
             if (cur_h >= max_h) { *toast_msg = "You cannot use this because you are already at max health."; return 1; }
@@ -1070,9 +1113,19 @@ static void OQ_ApplyHealthOrArmor(const char* name, const char* type, const char
         max_h = atoi(oquake_star_max_health.string);
     if (oquake_star_max_armor.string && oquake_star_max_armor.string[0] && atoi(oquake_star_max_armor.string) > 0)
         max_a = atoi(oquake_star_max_armor.string);
+    if (OQ_IsOasisMegaHealthArmorName(name)) {
+        const int dh = 200, da = 200;
+        cl.stats[STAT_HEALTH] += dh;
+        if (cl.stats[STAT_HEALTH] > max_h) cl.stats[STAT_HEALTH] = max_h;
+        cl.stats[STAT_ARMOR] += da;
+        if (cl.stats[STAT_ARMOR] > max_a) cl.stats[STAT_ARMOR] = max_a;
+        g_oq_health_applied_from_overlay_time = realtime;
+        g_oq_armor_applied_from_overlay_time = realtime;
+        return;
+    }
     {
         int is_health = type && (OQ_ContainsNoCase(type, "health") || OQ_ContainsNoCase(type, "powerup"));
-        int is_health_item = name && (OQ_ContainsNoCase(name, "Megahealth") || OQ_ContainsNoCase(name, "Health") || OQ_ContainsNoCase(name, "Stimpack"));
+        int is_health_item = name && (OQ_IsMegaHealthStyleInventoryName(name) || OQ_ContainsNoCase(name, "Health") || OQ_ContainsNoCase(name, "Stimpack"));
         if (is_health && is_health_item) {
             amount = (amount_from_desc >= 0) ? amount_from_desc : (OQ_ContainsNoCase(name, "Mega") ? 100 : (OQ_ContainsNoCase(name, "Stimpack") ? 10 : 25));
             cl.stats[STAT_HEALTH] += amount;
@@ -1160,7 +1213,7 @@ static const oquake_inventory_entry_t* OQ_FindFirstHealthEntry(void) {
     int i;
     for (i = 0; i < g_inventory_count; i++) {
         const oquake_inventory_entry_t* e = &g_inventory_entries[i];
-        if (OQ_ItemMatchesTab(e, OQ_TAB_POWERUPS) && e->name[0] && (OQ_ContainsNoCase(e->name, "Megahealth") || OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")))
+        if (OQ_ItemMatchesTab(e, OQ_TAB_POWERUPS) && e->name[0] && (OQ_IsMegaHealthStyleInventoryName(e->name) || OQ_IsOasisMegaHealthArmorName(e->name) || OQ_ContainsNoCase(e->name, "Health") || OQ_ContainsNoCase(e->name, "Stimpack")))
             return e;
         if (e->item_type[0] && OQ_ContainsNoCase(e->item_type, "health"))
             return e;
@@ -1292,7 +1345,7 @@ static int OQ_ItemMatchesTab(const oquake_inventory_entry_t* item, int tab) {
     const char* name = item ? item->name : NULL;
     /* API may return "KeyItem" or different casing; match type and name case-insensitively so API items show in correct tab. */
     int is_key = OQ_ContainsNoCase(type, "key") || (name && OQ_ContainsNoCase(name, "key"));
-    int is_powerup = OQ_ContainsNoCase(type, "powerup") || (name && (OQ_ContainsNoCase(name, "Megahealth") || OQ_ContainsNoCase(name, "Ring") || OQ_ContainsNoCase(name, "Pentagram") || OQ_ContainsNoCase(name, "Biosuit") || OQ_ContainsNoCase(name, "Quad")));
+    int is_powerup = OQ_ContainsNoCase(type, "powerup") || (name && (OQ_IsOasisCanonicalPowerupInventoryName(name) || OQ_ContainsNoCase(name, "Megahealth") || OQ_ContainsNoCase(name, "Ring") || OQ_ContainsNoCase(name, "Pentagram") || OQ_ContainsNoCase(name, "Biosuit") || OQ_ContainsNoCase(name, "Quad")));
     int is_weapon = OQ_ContainsNoCase(type, "weapon") || (name && (OQ_ContainsNoCase(name, "Shotgun") || OQ_ContainsNoCase(name, "Nailgun") || OQ_ContainsNoCase(name, "Launcher") || OQ_ContainsNoCase(name, "Lightning")));
     int is_ammo = OQ_ContainsNoCase(type, "ammo") || (name && (OQ_ContainsNoCase(name, "Shells") || OQ_ContainsNoCase(name, "Nails") || OQ_ContainsNoCase(name, "Rockets") || OQ_ContainsNoCase(name, "Cells")));
     int is_armor = OQ_ContainsNoCase(type, "armor") || (name && OQ_ContainsNoCase(name, "Armor"));
@@ -1879,6 +1932,14 @@ static int OQ_LoadJsonConfig(const char *json_path) {
         Cvar_Set("oquake_oasis_api_url", value);
         loaded = 1;
     }
+    if (OQ_ExtractJsonValue(json, "star_transport", value, sizeof(value))) {
+        Cvar_Set("oquake_star_transport", value);
+        loaded = 1;
+    }
+    if (OQ_ExtractJsonValue(json, "oasis_dna_path", value, sizeof(value))) {
+        Cvar_Set("oquake_oasis_dna_path", value);
+        loaded = 1;
+    }
     if (OQ_ExtractJsonValue(json, "config_file", value, sizeof(value))) {
         Cvar_Set("oquake_star_config_file", value);
         loaded = 1;
@@ -2057,8 +2118,18 @@ static int OQ_SaveJsonConfig(const char *json_path) {
     
     fprintf(f, "{\n");
     fprintf(f, "  \"config_file\": \"%s\",\n", config_file && config_file[0] ? config_file : "json");
+    fprintf(f, "  \"star_transport\": \"%s\",\n", (oquake_star_transport.string && oquake_star_transport.string[0]) ? oquake_star_transport.string : "remote");
     fprintf(f, "  \"star_api_url\": \"%s\",\n", star_url ? star_url : "");
     fprintf(f, "  \"oasis_api_url\": \"%s\",\n", oasis_url ? oasis_url : "");
+    fprintf(f, "  \"oasis_dna_path\": \"");
+    if (oquake_oasis_dna_path.string && oquake_oasis_dna_path.string[0]) {
+        const char* pd;
+        for (pd = oquake_oasis_dna_path.string; *pd; pd++) {
+            if (*pd == '"' || *pd == '\\') fputc('\\', f);
+            fputc((unsigned char)*pd, f);
+        }
+    }
+    fprintf(f, "\",\n");
     fprintf(f, "  \"beam_face\": %d,\n", beam_face);
     fprintf(f, "  \"stack_armor\": %s,\n", (s_armor && atoi(s_armor)) ? "1" : "0");
     fprintf(f, "  \"stack_weapons\": %s,\n", (s_weapons && atoi(s_weapons)) ? "1" : "0");
@@ -2331,6 +2402,8 @@ static int OQ_SaveQuakeConfig(const char *cfg_path) {
         fprintf(f, "set oquake_star_config_file \"%s\"\n", oquake_star_config_file.string ? oquake_star_config_file.string : "json");
         fprintf(f, "set oquake_star_api_url \"%s\"\n", star_url ? star_url : "");
         fprintf(f, "set oquake_oasis_api_url \"%s\"\n", oasis_url ? oasis_url : "");
+        fprintf(f, "set oquake_star_transport \"%s\"\n", oquake_star_transport.string ? oquake_star_transport.string : "remote");
+        fprintf(f, "set oquake_oasis_dna_path \"%s\"\n", oquake_oasis_dna_path.string ? oquake_oasis_dna_path.string : "");
         fprintf(f, "set oasis_star_beam_face \"%d\"\n", (int)oasis_star_beam_face.value);
         fprintf(f, "set oquake_star_stack_armor \"%s\"\n", oquake_star_stack_armor.string);
         fprintf(f, "set oquake_star_stack_weapons \"%s\"\n", oquake_star_stack_weapons.string);
@@ -2494,6 +2567,8 @@ void OQuake_STAR_Init(void) {
     Cvar_RegisterVariable(&oquake_star_config_file); /* Register this first so we can check it */
     Cvar_RegisterVariable(&oquake_star_api_url);
     Cvar_RegisterVariable(&oquake_oasis_api_url);
+    Cvar_RegisterVariable(&oquake_star_transport);
+    Cvar_RegisterVariable(&oquake_oasis_dna_path);
     Cvar_RegisterVariable(&oquake_star_username);
     Cvar_RegisterVariable(&oquake_star_password);
     Cvar_RegisterVariable(&oquake_star_api_key);
@@ -3039,6 +3114,11 @@ void OQuake_STAR_Init(void) {
     g_star_config.avatar_id = config_avatar_id;
     
     g_star_config.timeout_seconds = 30;
+    {
+        const char *tr = oquake_star_transport.string;
+        g_star_config.transport = (tr && q_strcasecmp(tr, "native") == 0) ? 1 : 0;
+    }
+    g_star_config.oasis_dna_path = (oquake_oasis_dna_path.string && oquake_oasis_dna_path.string[0]) ? oquake_oasis_dna_path.string : NULL;
 
     printf("\n********** GAME LOAD **********\n");
     result = star_api_init(&g_star_config);
@@ -3291,11 +3371,11 @@ void OQuake_STAR_OnItemsChangedEx(unsigned int old_items, unsigned int new_items
     if (gained & IT_ARMOR2) added += OQ_StackArmor() ? 0 : OQ_AddInventoryUnlockIfMissing("Yellow Armor", "Yellow Armor", "Armor");
     if (gained & IT_ARMOR3) added += OQ_StackArmor() ? 0 : OQ_AddInventoryUnlockIfMissing("Red Armor", "Red Armor", "Armor");
 
-    if (gained & IT_SUPERHEALTH) added += OQ_StackPowerups() ? OQ_AddInventoryEvent("Megahealth", "Megahealth pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing("Megahealth", "Megahealth", "Powerup");
-    if (gained & IT_INVISIBILITY) added += OQ_StackPowerups() ? OQ_AddInventoryEvent("Ring of Shadows", "Ring of Shadows pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing("Ring of Shadows", "Ring of Shadows", "Powerup");
-    if (gained & IT_INVULNERABILITY) added += OQ_StackPowerups() ? OQ_AddInventoryEvent("Pentagram of Protection", "Pentagram of Protection pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing("Pentagram of Protection", "Pentagram of Protection", "Powerup");
-    if (gained & IT_SUIT) added += OQ_StackPowerups() ? OQ_AddInventoryEvent("Biosuit", "Biosuit pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing("Biosuit", "Biosuit", "Powerup");
-    if (gained & IT_QUAD) added += OQ_StackPowerups() ? OQ_AddInventoryEvent("Quad Damage", "Quad Damage pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing("Quad Damage", "Quad Damage", "Powerup");
+    if (gained & IT_SUPERHEALTH) added += OQ_StackPowerups() ? OQ_AddInventoryEvent(OQ_QUAKE_NAME_MEGAHEALTH, "Megahealth pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing(OQ_QUAKE_NAME_MEGAHEALTH, "Megahealth pickup", "Powerup");
+    if (gained & IT_INVISIBILITY) added += OQ_StackPowerups() ? OQ_AddInventoryEvent(OQ_QUAKE_NAME_RING_OF_SHADOWS, "Ring of Shadows pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing(OQ_QUAKE_NAME_RING_OF_SHADOWS, "Ring of Shadows pickup", "Powerup");
+    if (gained & IT_INVULNERABILITY) added += OQ_StackPowerups() ? OQ_AddInventoryEvent(OQ_QUAKE_NAME_PENTAGRAM, "Pentagram of Protection pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing(OQ_QUAKE_NAME_PENTAGRAM, "Pentagram of Protection pickup", "Powerup");
+    if (gained & IT_SUIT) added += OQ_StackPowerups() ? OQ_AddInventoryEvent(OQ_QUAKE_NAME_BIOSUIT, "Biosuit pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing(OQ_QUAKE_NAME_BIOSUIT, "Biosuit pickup", "Powerup");
+    if (gained & IT_QUAD) added += OQ_StackPowerups() ? OQ_AddInventoryEvent(OQ_QUAKE_NAME_QUAD_DAMAGE, "Quad Damage pickup", "Powerup") : OQ_AddInventoryUnlockIfMissing(OQ_QUAKE_NAME_QUAD_DAMAGE, "Quad Damage pickup", "Powerup");
 
     if (gained & IT_SIGIL1) added += OQ_StackSigils() ? OQ_AddInventoryEvent("Sigil Piece 1", "Sigil Piece 1 acquired", "Artifact") : OQ_AddInventoryUnlockIfMissing("Sigil Piece 1", "Sigil Piece 1 acquired", "Artifact");
     if (gained & IT_SIGIL2) added += OQ_StackSigils() ? OQ_AddInventoryEvent("Sigil Piece 2", "Sigil Piece 2 acquired", "Artifact") : OQ_AddInventoryUnlockIfMissing("Sigil Piece 2", "Sigil Piece 2 acquired", "Artifact");
@@ -3384,7 +3464,7 @@ void OQuake_STAR_OnStatsChangedEx(
             int delta = new_health - old_health;
             if (delta >= 100) {
                 q_snprintf(desc, sizeof(desc), "Megahealth (+%d)", delta);
-                star_api_queue_add_item("Megahealth", desc, "Quake", "Powerup", NULL, 1, 1);
+                star_api_queue_add_item(OQ_QUAKE_NAME_MEGAHEALTH, desc, "Quake", "Powerup", NULL, 1, 1);
                 OQ_PickupLog("Stats: Megahealth +%d -> STAR", delta);
             } else {
                 q_snprintf(desc, sizeof(desc), "Health (+%d)", delta);
@@ -3633,19 +3713,19 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict) 
         int use_powerup = (oquake_star_use_powerup_on_pickup.string && atoi(oquake_star_use_powerup_on_pickup.string)) ? 1 : 0;
         OQ_StarDebugLog("InterceptTouch: megahealth use_powerup=%d", use_powerup);
         if (always_add) {
-            OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
+            OQuake_STAR_OnPickupLeftOnFloor(OQ_QUAKE_NAME_MEGAHEALTH, "Powerup", 1, "Megahealth (+100)");
             if (player_health >= max_h) { OQ_StarDebugLog("InterceptTouch: megahealth always_add at_max -> ret=%d", OQ_INTERCEPT_RET(first_edict_is_item)); return OQ_INTERCEPT_RET(first_edict_is_item); }
             OQ_StarDebugLog("InterceptTouch: megahealth always_add below_max -> ret=%d", use_powerup ? 0 : OQ_INTERCEPT_RET(first_edict_is_item));
             return use_powerup ? 0 : OQ_INTERCEPT_RET(first_edict_is_item);
         }
         if (player_health >= max_h) {
             if (!allow_pickup_if_max) { OQ_StarDebugLog("InterceptTouch: megahealth at_max !allow -> ret=0"); return 0; }
-            OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
+            OQuake_STAR_OnPickupLeftOnFloor(OQ_QUAKE_NAME_MEGAHEALTH, "Powerup", 1, "Megahealth (+100)");
             OQ_StarDebugLog("InterceptTouch: megahealth at_max allow -> ret=%d", OQ_INTERCEPT_RET(first_edict_is_item));
             return OQ_INTERCEPT_RET(first_edict_is_item);
         }
         if (!use_powerup) {
-            OQuake_STAR_OnPickupLeftOnFloor("Megahealth", "Powerup", 1, "Megahealth (+100)");
+            OQuake_STAR_OnPickupLeftOnFloor(OQ_QUAKE_NAME_MEGAHEALTH, "Powerup", 1, "Megahealth (+100)");
             OQ_StarDebugLog("InterceptTouch: megahealth below_max !use_powerup -> ret=%d", OQ_INTERCEPT_RET(first_edict_is_item));
             return OQ_INTERCEPT_RET(first_edict_is_item);
         }
@@ -4367,6 +4447,11 @@ void OQuake_STAR_Console_f(void) {
         }
         g_star_config.avatar_id = avatar_id;
         g_star_config.timeout_seconds = 30;
+        {
+            const char *tr = oquake_star_transport.string;
+            g_star_config.transport = (tr && q_strcasecmp(tr, "native") == 0) ? 1 : 0;
+        }
+        g_star_config.oasis_dna_path = (oquake_oasis_dna_path.string && oquake_oasis_dna_path.string[0]) ? oquake_oasis_dna_path.string : NULL;
         star_api_result_t r = star_api_init(&g_star_config);
         if (r != STAR_API_SUCCESS) {
             Con_Printf("Beamin failed - init: %s\n", star_api_get_last_error());
