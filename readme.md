@@ -1,208 +1,101 @@
-# 🌋 vkQuake
-[![Windows CI](https://github.com/Novum/vkQuake/actions/workflows/build-windows.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/build-windows.yml) [![Windows CI](https://github.com/Novum/vkQuake/actions/workflows/build-mingw.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/build-mingw.yml) [![Windows CI](https://github.com/Novum/vkQuake/actions/workflows/build-msys2-clangarm64.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/build-msys2-clangarm64.yml) [![Linux CI](https://github.com/Novum/vkQuake/actions/workflows/build-linux.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/build-linux.yml) [![macOS CI](https://github.com/Novum/vkQuake/actions/workflows/build-mac.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/build-mac.yml) [![Formatting](https://github.com/Novum/vkQuake/actions/workflows/clang-format-check.yml/badge.svg)](https://github.com/Novum/vkQuake/actions/workflows/clang-format-check.yml)
+# Introduction
 
-vkQuake is a port of id Software's [Quake](https://en.wikipedia.org/wiki/Quake_(video_game)) using Vulkan instead of OpenGL for rendering. It is based on the popular [QuakeSpasm](http://quakespasm.sourceforge.net/) and [QuakeSpasm-Spiked](https://triptohell.info/moodles/qss/) ports and runs all mods compatible with QuakeSpasm like [Arcane Dimensions](http://www.moddb.com/mods/arcane-dimensions). 
+OQUAKE is a fork of [VkQuake](https://github.com/Novum/vkQuake), which is built on top of the new OGEngine (STARAPIClient, WEB4 OASIS API & WEB5 STAR API).
 
-Improvements over QuakeSpasm include:
-* Much better performance with multithreaded rendering and loading
-* The game can run at higher frame rates than 72Hz without breaking physics
-* A software Quake like underwater effect
-* Support for Classic (original Quake) and Enhanced models (either MD5 format like the 2021 re-Release, or MD3 like Quake3)
-* When both Classic and Enhanced versions of models exist, display one or other kind using the Models menu option.
-* True color skins support (`.png`, `.tga`, `.jpg`) for MD3/MD5 models, including fullbrights (from QSS)
-* Dynamic shadows (requires a GPU with ray tracing support)
-* Better color precision reducing banding in dark areas
-* Native support for anti aliasing and anisotropic filtering
-* 8-bit color emulation
-* Scaling for pixelated look
-* Mods menu for easy mod loading
-* More modern protocol to avoid certain movement issues (from QSS)
-* Support for custom mod HUDs (from QSS)
-* Support for scriptable particles (from QSS)
-* True color support for level textures and static models (`.png`, `.tga`, `.jpg`)
-* External WAD support ([more info](https://github.com/Novum/vkQuake/pull/753))
-* WAD3 format support, allowing per-texture palettes for more colorful levels ([more info](https://github.com/Novum/vkQuake/pull/753))
+This will integrate with any other game built on top of the OGEngine, so far this includes ODOOM, which is also playable on Windows & Linux (OQUAKE also). Mac support is coming soon... Linux version may work with some tweaks but this has not been tested yet... any help with this would be appreciated thanks!
 
-## Installation
+The STARAPIClient can be downloaded here:
+https://github.com/NextGenSoftwareUK/OASIS/releases/tag/STAR-API-CLIENT-v1.0.0
 
-Windows and Linux binaries can be found in [Releases](https://github.com/Novum/vkQuake/releases).
-MacOS (both Apple Silicon and 64-bit Intel) binaries are at [Mac Source Ports](https://www.macsourceports.com/game/quake).
+Below is a link to a tech demo of what it can do in ODOOM & OQUAKE:
+https://youtu.be/ZH5u6OVPVYg?si=qbz8CfXs5kgWYPSn
 
-### Windows
-It is recommended to use the installer on Windows. This sets up start menu entries for the original and remastered Quake versions. Save data and config files will be written to the user folder (`%APPDATA\vkQuake`) instead of the Quake data folder.
+Below is the useful description from that video:
 
-Otherwise copy all files inside the `vkquake-<version>_windows_x64.zip` (Intel) or `vkquake-<version>_windows_arm64.zip` (Arm64) folder in the zip to the Quake base directory. Overwrite any existing files. Afterward to run the game just execute `vkQuake.exe`.
+"Preview of the new OGEngine (OASIS Game Engine) powering ODOOM and OQUAKE (forks of UZDOOM & VkQuake) built on top of the new STARAPIClient (which talks to the WEB4 OASIS API & WEB5 STAR API) and features many advanced features such as multi-threading, batching, etc). OGEngine = STARAPIClient + WEB4 OASIS API + WEB5 STAR API and is the beginning of the true open extendable metaverse (OASIS Omniverse) featuring cross quests, cross inventory/assets, SSO, NFT minting, sending items to other avatars/clans & much more! :)
 
-### Linux
-Copy all files inside the `vkquake-<version>-linux_x64` folder in the tar archive to the Quake base directory. Overwrite any existing files. Run `vkquake.AppImage`.
+We bridged Doom and Quake using OASIS creating a “meta” game of the two. This engine abstracts mission and game state logic, offering a new dimension to open source games. This is a key milestone in our journey to building the metaverse.
 
-> **Note**\
-> Make sure all data files are lowercase, e.g. "id1", not "ID1" and "pak0.pak", not "PAK0.PAK". Some distributions of the game have upper case file names, e.g. from GOG.com.
+People can now port any game to the OASIS Omniverse using the new generic STARAPI Client, we are porting Doom3, Duke3d, Wolfenstein, Minecraft clone, Morrowwind MMORPG clone next...
 
-### OpenBSD
+Stay tuned folks, we are only just getting started! ;-)
 
-[OpenBSD](https://openbsd.org) includes vkQuake in the standard package repositories since version [6.6](https://www.openbsd.org/66.html).
+Read more here:
 
-If you're running `OpenBSD 6.6` or greater, you can install the package with:
+https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/Docs/OGEngine_Overview.md
+https://github.com/NextGenSoftwareUK/OASIS/tree/master/OASIS%20Omniverse
 
-```console
-$ pkg_add vkquake
-```
+The OGEngine also allows GeoHotSpot triggers to be embedded in your games either in a quest, objective or standalone. They can trigger anything you like such as playing an audio clip, video, showing text, website, scripting events, NPCs (powered by intelligent learning AI agents such as OpenServ) etc etc. There is no limit to what you can do with the new OGEngine!
 
-### FreeBSD
+We will soon also be releasing the alphas of ODOOM, OQUAKE & Our World, our geolocation AR game powered by the OGEngine that allows your cross game quests to bring the action into the real world so imagine collecting keys or powerups etc for ODOOM & OQUAKE in real life! You may even find secrets hidden in parks such as the BFG 9000 and other surprises! ;-)
 
-[FreeBSD](https://freebsd.org) includes vkQuake in the standard port/package repoistories since version [11.3](https://www.freebsd.org/releases/11.3R/announce).
+An epic mission quest line spamming all 3 games as a demo of the tech is coming soon... watch this space! ;-)
 
-If you're running `FreeBSD 11.3` or greater, you can install the package with:
+We are also working on the OOS (OASIS OS) which as well as a low level kernel allowing multiple games to be loaded into memory simultaneously also contains the OASIS Omniverse HUB allowing you to instantly teleport between any location in any map in any game (both through portals in the HUB & whilst in any game) removing walled gardens and silos between games so they merge into the same game (think Ready Player One). It also has a shared HUD over everything so there is a consistent UI for your inventory, quests, friends, messages, avatar etc.
 
-```console
-# pkg install vkquake
-```
+We plan to make super cyber demons and other AI monsters and NPCs powered by holonic braid with collective shared memory so they share tactics and strategies... hope your Ready for a real challenge! 😉💪 We also plan to have AI tournaments where we pit different models against each other!
 
-Alternatvely, you can build vkQuake with FreeBSD's port collection:
-```console
-$ cd /usr/ports/games/vkquake
-# make install
-```
+The OGEngine is built on top of the powerful holonic OASIS architecture that has been in development for over 10 years featuring auto failover, auto load-balancing & auto-replication powered by the OASIS Hyperdrive so there is zero downtime and you can even play offline and re-sync when you are back online so ideal for poor to low connectivity or for traveling! If one web2 or web3 provider goes down or is slow it will automatically find the next fastest ONODE in your area independent of network! :)
 
-### Quake '2021 re-release'
+The WEB4 OASIS API is an abstraction/aggreation layer over all of web2 and web3 removing walled gardens & silos and features identity, reputation, nfts, tokens, geonfts & much more!
 
-vkQuake has support for playing the 2021 re-release content. Follow installation instructions as above but copy the files into the rerelease folder.
+The WEB5 STAR API is the gamification, business and metaverse layer built on top of the WEB4 OASIS API.
 
-## Vulkan
-vkQuake shows basic usage of the API. For example it demonstrates render passes & sub passes, pipeline barriers & synchronization, compute shaders, push & specialization constants, CPU/GPU parallelism and memory pooling.
+STAR CLI/ODK is a powerful CLI & Low/No Code Generator allowing you to build OAPPs powered by the COSMIC ORM allowing you to create, read, update, delete & list your holons (data objects) in 1 line which auto sync over all of web2 and web3, no need to learn new stacks, languages or platforms, just focus on your idea and bring them to life with zero friction or barriers! If you want to also run it on a new chain, cloud provider, db or anything else in future this is handled automatically by the OASIS, no need to have to keep porting or writing fragile bridges, we do all the heavy lifting for you!
 
-## Endianness
-vkQuake only supports **little-endian** systems. 
-The reason is, all known existing Vulkan-capable systems in the wild are little-endian. Consequently, all big-endian support from QuakeSpasm has been effectively removed. 
-vkQuake wouldn't even start on an big-endian system, outputing a fatal error.
+Check out the rest of our docs in our repro and our sites below for more info!
 
-## Building
-> **Note**\
-> For Windows, you will need at least Vulkan SDK version 1.4.321.1 or newer.
-> 
-> For Linux, you will need at least Vulkan SDK version 1.2.162 or newer. When building for Linux this is not always the case for the SDK provided by the distribution. Install the latest LunarG SDK if necessary.
+Welcome to the future, welcome to the genesis of the true metaverse! ;-)
 
-### Windows
+https://www.oasisweb4.com/
+https://www.ourworldthegame.com/
+https://github.com/NextGenSoftwareUK/OASIS"
 
-Clone the vkQuake repo from `https://github.com/Novum/vkQuake.git`
+The docs in here: https://github.com/NextGenSoftwareUK/OASIS/tree/master/OASIS%20Omniverse explain how to use the client, ODOOM & OQUAKE with build instructions for Windows, Linux & Mac. You can also see the ODOOM & OQUAKE examples of how to use it.
 
-Prerequisites:
+# Getting Started
 
-* [Git for Windows](https://github.com/git-for-windows/git/releases)
-* A [Vulkan-capable GPU](https://en.wikipedia.org/wiki/Vulkan_(API)#Compatibility) with the appropriate drivers installed
-* Install the latest [Vulkan SDK](https://vulkan.lunarg.com/sdk/home). Log out and back in after installation to make sure environment variables are set.
+1. Simply download the appropriate zip below,  unzip and then run the RUN OQUAKE script.
 
-#### Visual Studio
+2. You can edit the [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json) file in the build folder to configure it including the WEB4 OASIS API & WEB5 STAR API URIs. They currently point locally so your need to run the 
+[stat web4 and web5 apis](https://github.com/NextGenSoftwareUK/OASIS/blob/master/Scripts/start_web4_and_web5_apis.bat) script for windows or [this script](https://github.com/NextGenSoftwareUK/OASIS/blob/master/Scripts/start_web4_and_web5_apis.sh) for Linux/Mac in the Scripts folder in the root of the OASIS repro.
 
-* Install [Visual Studio Community](https://www.visualstudio.com/products/free-developer-offers-vs) with Visual C++ component.
+3. You also need to create an avatar in [STAR](https://github.com/NextGenSoftwareUK/OASIS/releases/tag/STAR-ODK-Runtime-v3.5.0) verify it.
 
-Open the Visual Studio solution, `Windows\VisualStudio\vkquake.sln`, select the desired configuration and platform, then
-build the solution.
+   Soon you will be able to create your avatar via the OPORTAL, you can then update your [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json) config file in your build folder to:
 
-#### MinGW
+   WEB4 OASIS API URL
+   https://api.oasisweb4.one
 
-Setup your [MinGW-w64](https://sourceforge.net/projects/mingw-w64/) environment, e.g. using [w64devkit](https://github.com/skeeto/w64devkit) or [MSYS2](https://www.msys2.org/).
+   WEB5 STAR API
+   https://star.oasisweb4.one
 
+4. Next you may need to edit [RUN_OQUAKE.bat](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQuake/RUN%20OQUAKE.bat) (Windows) or [RUN_OQUAKE.sh](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQuake/RUN_OQUAKE.sh) (Linux/Mac) if it cannot find your Quake base/install directory for the retail copy of the game (contains the pak files etc). by default it will look in your Steam folder and a few others. If you need to edit the base path open the script and set OQUAKE_BASEDIR to wherever you have the retail copy of Quake installed (where the id1 folder and pak files are).
 
-Build 64 bit Intel vkQuake:
+5. Finally you can launch OQUAKE by running the RUN OQUAKE script. 
 
-~~~
-cd vkQuake/Quake
-make -f Makefile.w64
-~~~
+6. Once the game has started press the ` key to open the in-game console.
 
-Build 64 bit Arm vkQuake:
+7. In the console type the following to beam in:
 
-~~~
-cd vkQuake/Quake
-make -f Makefile.w64a
-~~~
+   ````star beamin <username> <password>````
 
-If you are on Linux and want to cross-compile for Windows, see the `build_cross_win??.sh` scripts.
+   After this it will automatically beam in every time you start OQUAKE.
 
-### Linux
+8. For a full list of what every setting does in the [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json) file please read the [STAR Games User Guide](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/Docs/STAR_Games_User_Guide.md)
 
-Make sure that both your GPU and your GPU driver support [Vulkan](https://en.wikipedia.org/wiki/Vulkan#Support_across_vendors).
+# Controls
 
-To compile vkQuake, first install the build dependencies:
+Press I for inventory popup.
 
-Ubuntu:
-~~~
-apt-get install git meson gcc glslang-tools spirv-tools libsdl2-dev libvulkan-dev libvorbis-dev libmpg123-dev libx11-xcb-dev
-~~~
+Press Q for Quests.
 
-Arch Linux:
-~~~
-pacman -S git meson flac glibc libgl mpg123 libvorbis libx11 sdl2 vulkan-headers glslang spirv-tools
-~~~
+Press O to cycle Quest objectives for the active quest in the Quest Tracker. You can also hide it if you wish.
 
-Fedora:
-~~~
-dnf install git meson gcc glslang spirv-tools vulkan-loader-devel SDL2-devel mpg123-devel libvorbis-devel flac-devel opusfile-devel
-~~~
+Press X to toggle showing/hiding XP.
 
-Then clone the vkQuake repo:
+Press C for ````Quick Use Health```` if you have any in inventory and are not already at max. Max can be configured in [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json)
 
-~~~
-git clone https://github.com/Novum/vkQuake.git
-~~~
+Press F for ````Quick Use Armor```` if you have any in your inventory and are not already at max. Max can be configured in [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json)
 
-Now go to the Quake directory and compile the executable:
-
-~~~
-cd vkQuake
-meson build && ninja -C build
-~~~
-
-> **Note**\
-> The Meson version needs to be 0.47.0 or newer. For older distributions you can use make:
-> ~~~
-> cd vkQuake/Quake
-> make -j
-> ~~~
-> Meson is the preferred way to build vkQuake because it automatically checks for out of date file depenencies, is faster and has better error reporting for missing dependencies.
-
-> **Note**\
-> vkQuake 0.97 and later requires at least **SDL2 2.0.6 with enabled Vulkan support**. The precompiled versions in some of the distribution repositories (e.g. Ubuntu) do not currently ship with Vulkan support. You will therefore need to compile it from source. Make sure you have libvulkan-dev installed before running configure.
-
-### MacOS
-
-To compile vkQuake, first install the build dependencies with Homebrew:
-
-~~~
-brew install molten-vk vulkan-headers glslang spirv-tools sdl2 libvorbis flac opus opusfile flac mpg123 meson pkgconfig
-~~~
-
-Then clone the vkQuake repo:
-
-~~~
-git clone https://github.com/Novum/vkQuake.git
-~~~
-
-Now go to the Quake directory and compile the executable:
-
-~~~
-cd vkQuake
-meson build && ninja -C build
-~~~
-
-> **Note**\
-> The Meson version needs to be 0.47.0 or newer.
-
-## Optional - Music / Soundtrack
-
-> **Note**\
-> This section only applies to older releases. For the 2021 re-release music will work out of the box.
-
-The original Quake had a great soundtrack by Nine Inch Nails. Unfortunately, the Steam version does not come with the soundtrack files. The GOG-provided files need to be converted before they are ready for use. In general, you'll just need to move a "music" folder to the correct location within your vkQuake installation (.e.g `/usr/share/quake/id1/music`). Most Quake engines play nicest with soundtracks placed in the `id1/music` subfolder vs. `sound\cdtracks`
-
-QuakeSpasm, the engine vkQuake is derived from, supports OGG, MP3, FLAC, and WAV audio formats. The Linux version of QuakeSpasm/VkQuake requires external libraries: libogg or libvorbis for OGG support, libmad or libmpg123 for MP3, and libflac for FLAC. If you already have a setup that works for the engine you're currently using, then you don't necessarily have to change it. 
-
-Generally, the below setup works for multiple engines, including Quakespasm/vkQuake:
-
-* The music files are loose files, NOT inside a pak or pk3 archive.
-* The files are placed inside a "music" subfolder of the "id1" folder. For missionpack or mod soundtracks, the files are placed in a "music" subfolder of the appropriate game folder. So the original Quake soundtrack files go inside "id1\music", Mission Pack 1 soundtrack files go inside "hipnotic\music", and Mission Pack 2 soundtrack files go inside "rogue\music".
-* The files are named in the pattern "tracknn", where "nn" is the CD track number that the file was ripped from. Since the soundtrack starts at the second CD track, MP3 soundtrack files are named "track02.mp3", "track03.mp3", etc. OGG soundtrack files are named "track02.ogg", "track03.ogg", etc. FLAC soundtrack files are named "track02.flac", "track03.flac", etc. WAV soundtrack files are named "track02.wav", "track03.wav", etc.
-
-**See more:** [Quake Soundtrack Solutions (Steam Community)](http://steamcommunity.com/sharedfiles/filedetails/?id=119489135)
+More news & releases coming soon!
