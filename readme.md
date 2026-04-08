@@ -84,6 +84,16 @@ The docs in here: https://github.com/NextGenSoftwareUK/OASIS/tree/master/OASIS%2
 
 8. For a full list of what every setting does in the [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json) file please read the [STAR Games User Guide](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/Docs/STAR_Games_User_Guide.md)
 
+# A whole new paradigm of gaming awaits!
+
+As you can see from the different settings in the [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/ODOOM/build/oasisstar.json) file you can customize very powerful settings such as the option to allow people to pick up health, armor, ammo, powerfups even when you already have max health/armor/health etc allowing you to use later on from your OASIS/STAR inventory. This unlocks a whole new dimension to play and strategy where you can choose to save them for tougher key battles either in single player or deadthmatch. 
+
+You can also choose to send anything in your invenory (weapons, ammo, armor, health, powerups etc to your friends or clan members again unlocking a whole new paradigm of gaming and strategy. For example your clan mate could be in a fiece battle either in ODOOM, OQUAKE or another game and you can send them extra weapons, ammo, powerups, armor, health etc to help them out! This opens up another level of teamwork, strategy and long term planning. You could for example have dedicated team members whose whole job is to farm these items or you could even hire gunmen to go and grab rare items, powerups etc, the possiblities are endless! 
+
+You could even have some quests that require co-ordination between various team mates in different games at the same time such as turning a key at the same time such as in ODOOM and OQUAKE or finding a silver key in ODOOM to open the silver door in OQUAKE and a blue keycard to open a door in ODOOM. Soon you will also be able to find keys, powerups, etc in reallife areas around you in our upcoming geo-location AR game Our World!
+
+We are only just scratching the surface of what this new revolutionary technolgy unlocks! This is the beginning of the true metaverse dream so better buckle up, things are about to get real interesting! ;-)
+
 # Controls
 
 Press I for inventory popup.
