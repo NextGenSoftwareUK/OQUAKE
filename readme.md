@@ -96,6 +96,8 @@ You could even have some quests that require co-ordination between various team 
 
 We are only just scratching the surface of what this new revolutionary technology unlocks! This is the beginning of the true metaverse dream so better buckle up, things are about to get real interesting! ;-)
 
+For a full list of what every setting does in the [oasisstar.json](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/OQUAKE/build/oasisstar.json) file please read the [STAR Games User Guide](https://github.com/NextGenSoftwareUK/OASIS/blob/master/OASIS%20Omniverse/Docs/STAR_Games_User_Guide.md)
+
 # Controls
 
 Press I for inventory popup.
