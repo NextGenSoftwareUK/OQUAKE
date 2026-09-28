@@ -68,9 +68,13 @@ jobs:
           $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
           & $msbuild Windows\VisualStudio\vkquake.sln -property:Configuration=Release -property:Platform=x64 -maxcpucount -verbosity:minimal
           if ($LASTEXITCODE -ne 0) { throw 'OQUAKE Windows build failed.' }
+          $buildOutput = 'Windows/VisualStudio/Build-vkQuake/x64/Release'
+          if (-not (Test-Path "$buildOutput/vkquake.exe" -PathType Leaf)) {
+            throw "OQUAKE Windows executable was not produced at $buildOutput/vkquake.exe."
+          }
           $out = 'artifacts/OQUAKE-Windows-x64'
           New-Item $out -ItemType Directory -Force | Out-Null
-          Copy-Item Windows\VisualStudio\Build-vkQuake\Release\* $out -Recurse
+          Copy-Item "$buildOutput/*" $out -Recurse
           Copy-Item "$env:OGENGINE_NATIVE\ogengine.dll" $out
           Copy-Item "$env:OGENGINE_NATIVE\e_sqlite3.dll" $out
           Compress-Archive "$out\*" "artifacts/OQUAKE-Windows-x64-v${{ inputs.version }}.zip"
