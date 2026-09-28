@@ -3,60 +3,117 @@ name: Release OQUAKE
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Stable semantic version (X.Y.Z)
-        required: true
-        type: string
-      release_notes:
-        description: Reviewed Markdown release notes
-        required: true
-        type: string
+      version: { description: 'Stable semantic version (X.Y.Z)', required: true, type: string }
+      release_notes: { description: 'Reviewed Markdown release notes', required: true, type: string }
+      publish: { description: 'Create the GitHub release after all builds pass', required: true, type: boolean, default: false }
 
-permissions:
-  contents: write
+permissions: { contents: write }
 
 jobs:
-  release-linux:
-    runs-on: ubuntu-22.04
+  validate:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate release identity
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+      - env: { GH_TOKEN: '${{ github.token }}', VERSION: '${{ inputs.version }}' }
         run: |
-          set -euo pipefail
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           ! gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v5
+
+  build:
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: Windows-x64, os: windows-2022, rid: win-x64 }
+          - { platform: Linux-x64, os: ubuntu-22.04, rid: linux-x64 }
+          - { platform: macOS-x64, os: macos-14, rid: osx-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          context: Packaging/AppImage/docker
-          platforms: linux/amd64
-          tags: build-oquake
-          load: true
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha
-      - name: Build integrated OQUAKE
-        run: docker run --rm --privileged -e VERSION="${{ inputs.version }}" -v "$PWD:/usr/src/vkQuake" build-oquake /usr/src/vkQuake/Packaging/AppImage/run-in-docker.sh
-      - name: Package and verify OASIS runtime
+          repository: NextGenSoftwareUK/OASIS
+          ref: master
+          path: oasis
+          submodules: recursive
+          token: ${{ secrets.PRIVATE_SUBMODULE_PAT }}
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 10.0.x }
+      - name: Build platform OGEngineClient
+        shell: bash
         run: |
           set -euo pipefail
-          source_archive=$(find Packaging/AppImage -type f -name '*.tar.gz' -print -quit)
-          test -n "$source_archive"
-          mkdir package
-          tar -xzf "$source_archive" -C package
-          cp Quake/OGEngineClient.so package/
-          find package -type f -name 'vkquake*' | grep -q .
-          test -s package/OGEngineClient.so
-          tar -czf "OQUAKE-Linux-x64-v${{ inputs.version }}.tar.gz" -C package .
-      - name: Create OQUAKE release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
-          RELEASE_NOTES: ${{ inputs.release_notes }}
+          . oasis/Docker/oasis-dependency-versions.env
+          git clone --no-checkout "$LIBRARIES_REPO" NextGenSoftware-Libraries
+          git -C NextGenSoftware-Libraries checkout --detach "$LIBRARIES_COMMIT"
+          git clone --no-checkout "$HOLOCHAIN_REPO" holochain-client-csharp
+          git -C holochain-client-csharp checkout --detach "$HOLOCHAIN_COMMIT"
+          project="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/OGEngineClient.csproj"
+          dotnet restore "$project" -r '${{ matrix.rid }}'
+          dotnet publish "$project" -c Release -r '${{ matrix.rid }}' --self-contained true -p:NoWarn=NU1605
+          native="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          test -d "$native"
+          echo "OGENGINE_NATIVE=$native" >> "$GITHUB_ENV"
+      - name: Install Windows Vulkan SDK
+        if: runner.os == 'Windows'
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with: { version: 1.4.321.1, cache: true }
+      - name: Build and package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item "$env:OGENGINE_NATIVE\ogengine.lib" Quake\ogengine.lib
+          Copy-Item "$env:OGENGINE_NATIVE\ogengine.dll" Quake\ogengine.dll
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          & $msbuild Windows\VisualStudio\vkquake.sln -property:Configuration=Release -property:Platform=x64 -maxcpucount -verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'OQUAKE Windows build failed.' }
+          $out = 'artifacts/OQUAKE-Windows-x64'
+          New-Item $out -ItemType Directory -Force | Out-Null
+          Copy-Item Windows\VisualStudio\Build-vkQuake\Release\* $out -Recurse
+          Copy-Item "$env:OGENGINE_NATIVE\ogengine.dll" $out
+          Copy-Item "$env:OGENGINE_NATIVE\e_sqlite3.dll" $out
+          Compress-Archive "$out\*" "artifacts/OQUAKE-Windows-x64-v${{ inputs.version }}.zip"
+      - name: Build and package Unix
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           set -euo pipefail
+          if [[ '${{ runner.os }}' == Linux ]]; then
+            sudo apt-get update
+            sudo apt-get install -y meson ninja-build libsdl2-dev libvulkan-dev glslang-tools spirv-tools libvorbis-dev libflac-dev libopusfile-dev libmpg123-dev
+            ext=so; sqlite=libe_sqlite3.so
+          else
+            brew install molten-vk vulkan-headers glslang spirv-tools sdl2 libvorbis flac opus opusfile mpg123 meson
+            ext=dylib; sqlite=libe_sqlite3.dylib
+          fi
+          cp "$OGENGINE_NATIVE/ogengine.$ext" "Quake/libogengine.$ext"
+          meson setup build --buildtype=release
+          ninja -C build
+          mkdir -p artifacts/package
+          cp build/vkquake "artifacts/package/"
+          cp "$OGENGINE_NATIVE/ogengine.$ext" "$OGENGINE_NATIVE/$sqlite" artifacts/package/
+          tar -czf "artifacts/OQUAKE-${{ matrix.platform }}-v${{ inputs.version }}.tar.gz" -C artifacts/package .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OQUAKE-${{ matrix.platform }}-v${{ inputs.version }}
+          path: artifacts/OQUAKE-${{ matrix.platform }}-v${{ inputs.version }}.*
+          if-no-files-found: error
+
+  publish:
+    if: inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'OQUAKE-*-v${{ inputs.version }}', path: artifacts, merge-multiple: true }
+      - name: Verify and release all platforms
+        env: { GH_TOKEN: '${{ github.token }}', VERSION: '${{ inputs.version }}', RELEASE_NOTES: '${{ inputs.release_notes }}' }
+        run: |
+          set -euo pipefail
+          test "$(find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) | wc -l)" -eq 3
+          unzip -l artifacts/OQUAKE-Windows-x64-v$VERSION.zip | grep -q ogengine.dll
+          for archive in artifacts/*.tar.gz; do tar -tzf "$archive" | grep -q ogengine; done
           printf '%s\n' "$RELEASE_NOTES" > release-notes.md
-          gh release create "v$VERSION" "OQUAKE-Linux-x64-v$VERSION.tar.gz" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "OQUAKE v$VERSION" --notes-file release-notes.md --verify-tag=false
+          mapfile -t assets < <(find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) | sort)
+          gh release create "v$VERSION" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "OQUAKE v$VERSION" --notes-file release-notes.md --verify-tag=false
