@@ -50,7 +50,7 @@ jobs:
           git -C holochain-client-csharp checkout --detach "$HOLOCHAIN_COMMIT"
           project="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/OGEngineClient.csproj"
           dotnet restore "$project" -r '${{ matrix.rid }}'
-          dotnet publish "$project" -c Release -r '${{ matrix.rid }}' --self-contained true -p:NoWarn=NU1605
+          dotnet publish "$project" -c Release -r '${{ matrix.rid }}' --self-contained true -m:1 -p:NoWarn=NU1605
           native="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/bin/Release/net10.0/${{ matrix.rid }}/publish"
           test -d "$native"
           echo "OGENGINE_NATIVE=$native" >> "$GITHUB_ENV"
