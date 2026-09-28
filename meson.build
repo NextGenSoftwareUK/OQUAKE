@@ -218,7 +218,7 @@ endif
 # OQuake (injected by apply_oquake_to_vkquake.ps1): add integration sources + OGEngineClient when present
 if import('fs').exists(join_paths(meson.source_root(), 'Quake', 'oquake_star_integration.c'))
     srcs += ['Quake/oquake_star_integration.c', 'Quake/pr_ext_oquake.c']
-    deps += cc.find_library('OGEngineClient', dirs: join_paths(meson.source_root(), 'Quake'), required: true)
+    deps += cc.find_library('ogengine', dirs: join_paths(meson.source_root(), 'Quake'), required: true)
     cflags += ['-DOASIS_STAR_API', '-DOQUAKE_STAR_API_SESSION_IMPL', '-DOQUAKE_STAR_API_REFRESH_AVATAR_PROFILE_IMPL']
 endif
 
