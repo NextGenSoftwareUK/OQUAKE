@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "oquake_ogengine_integration.h"
 #include "bgmusic.h"
 
 void (*vid_menucmdfn) (void); // johnfitz
@@ -1382,6 +1383,8 @@ enum
 	GAME_OPT_AUTOLOAD,
 	GAME_OPT_STARTUP_DEMOS,
 	GAME_OPT_SHOWFPS,
+	GAME_OPT_OFFLINE_SYNC,
+	GAME_OPT_OFFLINE_DRAIN,
 	GAME_OPTIONS_ITEMS
 };
 
@@ -1415,6 +1418,17 @@ static void M_GameOptions_AdjustSliders (int dir, qboolean mouse)
 
 	switch (game_options_cursor)
 	{
+
+	// OASIS_EDGE_ADJUST_BEGIN
+	case GAME_OPT_OFFLINE_SYNC:
+		if (dir && OQuake_STAR_OfflineSyncMode() >= 0)
+			OQuake_STAR_OfflineSyncCommand(OQuake_STAR_OfflineSyncMode() ? "off" : "on");
+		break;
+	case GAME_OPT_OFFLINE_DRAIN:
+		if (dir && OQuake_STAR_OfflineSyncMode() > 0)
+			OQuake_STAR_OfflineSyncCommand("sync-and-off");
+		break;
+	// OASIS_EDGE_ADJUST_END
 	case GAME_OPT_SCALE: // console and menu scale
 		if (scr_relativescale.value)
 		{
@@ -1570,6 +1584,19 @@ static void M_GameOptions_Draw (cb_context_t *cbx)
 		const int y = top + i * CHARACTER_SIZE;
 		switch (i + first_game_option)
 		{
+
+		// OASIS_EDGE_DRAW_BEGIN
+		case GAME_OPT_OFFLINE_SYNC:
+			M_Print(cbx, MENU_LABEL_X, y, "Offline Sync");
+			if (OQuake_STAR_OfflineSyncMode() < 0)
+				M_Print(cbx, MENU_VALUE_X, y, "Unavailable");
+			else M_DrawCheckbox(cbx, MENU_VALUE_X, y, OQuake_STAR_OfflineSyncMode());
+			break;
+		case GAME_OPT_OFFLINE_DRAIN:
+			M_Print(cbx, MENU_LABEL_X, y, "Sync and disable");
+			M_Print(cbx, MENU_VALUE_X, y, OQuake_STAR_OfflineSyncMode() > 0 ? "Enter" : "Unavailable");
+			break;
+		// OASIS_EDGE_DRAW_END
 		case GAME_OPT_SCALE:
 			M_Print (cbx, MENU_LABEL_X, y, "Interface Scale");
 			l = scr_relativescale.value ? 2.0f : ((vid.width / 320.0) - 1);
