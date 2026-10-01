@@ -9,8 +9,8 @@
  * - Door touch -> check local key first, then cross-game (Doom keycards)
  */
 
-#ifndef OQUAKE_STAR_INTEGRATION_H
-#define OQUAKE_STAR_INTEGRATION_H
+#ifndef OQUAKE_OGENGINE_INTEGRATION_H
+#define OQUAKE_OGENGINE_INTEGRATION_H
 
 #include "ogengine.h"
 
@@ -25,6 +25,9 @@ typedef struct cb_context_s cb_context_t;
 
 void OQuake_STAR_Init(void);
 void OQuake_STAR_Cleanup(void);
+/** Settings menu queries and actions; changes are persisted only after the native runtime accepts them. */
+int OQuake_STAR_OfflineSyncMode(void); /* -1 unavailable, 0 disabled, 1 enabled */
+void OQuake_STAR_OfflineSyncCommand(const char* command);
 void OQuake_STAR_OnKeyPickup(const char* key_name);
 /** Only report pickups when in_real_game is 1 (e.g. sv.active && !cls.demoplayback). Use from engine to avoid tracking during demos/menu. */
 void OQuake_STAR_OnItemsChangedEx(unsigned int old_items, unsigned int new_items, int in_real_game);
@@ -69,9 +72,10 @@ int OQuake_STAR_InterceptTouchPickupAtMax(void* item_edict, void* player_edict);
 int OQuake_STAR_IsQuestPopupOpen(void);
 /** Returns 1 if the inventory popup (I key) is open, 0 otherwise. Engine should use the same movement/view blocking as for the quest popup when either popup is open. */
 int OQuake_STAR_IsInventoryPopupOpen(void);
+void OQuake_STAR_CheckIncomingTeleport(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OQUAKE_STAR_INTEGRATION_H */
+#endif /* OQUAKE_OGENGINE_INTEGRATION_H */
