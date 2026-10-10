@@ -142,11 +142,11 @@ static qpic_t *Sbar_LoadExternalPic (const char *path_no_ext)
 		float		 sl, tl, sh, th;
 	} oq_glpic_t;
 
-	byte		   *data;
-	int				width, height;
-	enum srcformat	fmt;
-	oq_glpic_t		gl;
-	qpic_t		   *pic;
+	byte		  *data;
+	int			   width, height;
+	enum srcformat fmt;
+	oq_glpic_t	   gl;
+	qpic_t		  *pic;
 
 	data = Image_LoadImage (path_no_ext, &width, &height, &fmt, 0);
 	if (!data)
@@ -156,8 +156,7 @@ static qpic_t *Sbar_LoadExternalPic (const char *path_no_ext)
 	pic->width = width;
 	pic->height = height;
 
-	gl.gltexture = TexMgr_LoadImage (
-		NULL, path_no_ext, width, height, fmt, data, path_no_ext, 0, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
+	gl.gltexture = TexMgr_LoadImage (NULL, path_no_ext, width, height, fmt, data, path_no_ext, 0, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
 	gl.sl = 0;
 	gl.tl = 0;
 	gl.sh = 1;
@@ -1310,7 +1309,7 @@ Sbar_Draw
 */
 
 /* Forward declaration for inventory overlay */
-extern void OQuake_STAR_DrawInventoryOverlay(cb_context_t* cbx);
+extern void OQuake_STAR_DrawInventoryOverlay (cb_context_t *cbx);
 
 void Sbar_Draw (cb_context_t *cbx)
 {

@@ -27,6 +27,10 @@ jobs:
           ${{ matrix.platform.msys-env }}-glslang
 
     - uses: actions/checkout@v4
+    - uses: ./.github/actions/build-ogengine
+      with:
+        rid: win-x64
+        token: ${{ secrets.PRIVATE_SUBMODULE_PAT }}
 
     - name: Build MinGW
       run: |
