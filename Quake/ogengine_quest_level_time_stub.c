@@ -11,14 +11,15 @@
 #ifdef OQUAKE_QUEST_LEVEL_TIME_STUB
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-void ogengine_queue_quest_level_time(const char* game_source, int level_elapsed_seconds)
-{
-    (void)game_source;
-    (void)level_elapsed_seconds;
-}
+	void ogengine_queue_quest_level_time (const char *game_source, int level_elapsed_seconds)
+	{
+		(void)game_source;
+		(void)level_elapsed_seconds;
+	}
 
 #ifdef __cplusplus
 }

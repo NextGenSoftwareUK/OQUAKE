@@ -12,6 +12,10 @@ jobs:
         configuration: [release, debug]
     steps:
     - uses: actions/checkout@v4
+    - uses: ./.github/actions/build-ogengine
+      with:
+        rid: osx-arm64
+        token: ${{ secrets.PRIVATE_SUBMODULE_PAT }}
     - name: Install Dependencies
       run: brew install molten-vk vulkan-headers glslang spirv-tools sdl2 libvorbis flac opus opusfile flac mpg123 meson
     - name: Build vkQuake

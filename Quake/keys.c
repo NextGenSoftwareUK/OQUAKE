@@ -1079,7 +1079,7 @@ void Key_EventWithKeycode (int key, qboolean down, int keycode)
 		(key_dest == key_game && (!con_forcedup || !consolekeys[key])))
 	{
 		if (key == K_TAB && (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ()))
-		 return;
+			return;
 		kb = keybindings[key];
 		if (kb)
 		{

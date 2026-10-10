@@ -523,10 +523,10 @@ static void Draw_FillCharacterQuadScaled (float x, float y, char num, basicverte
 	const float texel_offset = 0.001f;
 	const float frow = row * st_size;
 	const float fcol = col * st_size;
-	const float	sz = CHARACTER_SIZE * scale;
+	const float sz = CHARACTER_SIZE * scale;
 
 	basicvertex_t corner_verts[4];
-	float texcoords[4][2] = {
+	float		  texcoords[4][2] = {
 		{x, y},
 		{x + sz, y},
 		{x + sz, y + sz},
@@ -579,8 +579,8 @@ void Draw_StringScaled (cb_context_t *cbx, float x, float y, float scale, const 
 	int			num_verts = 0;
 	int			i;
 	const char *tmp;
-	const float	sz = CHARACTER_SIZE * scale;
-	static byte	white[4] = {255, 255, 255, 255};
+	const float sz = CHARACTER_SIZE * scale;
+	static byte white[4] = {255, 255, 255, 255};
 	const byte *use_rgba = rgba ? rgba : white;
 
 	if (y <= -sz)
