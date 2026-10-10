@@ -1053,7 +1053,7 @@ static void PF_Remove (void)
 	edict_t *ed;
 
 	ed = G_EDICT (OFS_PARM0);
-	OQuake_STAR_OnEntityFreed(ed);  /* catch monster kills when progs call remove(self) instead of makestatic */
+	OQuake_STAR_OnEntityFreed (ed); /* catch monster kills when progs call remove(self) instead of makestatic */
 	ED_Free (ed);
 }
 
@@ -1595,10 +1595,11 @@ sizebuf_t *WriteDest (void)
 static void PF_sv_WriteByte (void)
 {
 	float byteval = G_FLOAT (OFS_PARM1);
-	/* When QuakeC Killed() does WriteByte(MSG_ALL, SVC_KILLEDMONSTER), self is the dead monster. Hook here so we see all monster kills regardless of remove/makestatic path. */
+	/* When QuakeC Killed() does WriteByte(MSG_ALL, SVC_KILLEDMONSTER), self is the dead monster. Hook here so we see all monster kills regardless of
+	 * remove/makestatic path. */
 	if ((int)byteval == svc_killedmonster)
 	{
-		edict_t *dead = PROG_TO_EDICT (pr_global_struct->self);
+		edict_t	   *dead = PROG_TO_EDICT (pr_global_struct->self);
 		const char *classname = dead ? PR_GetString (dead->v.classname) : NULL;
 		if (classname && classname[0])
 			OQuake_STAR_OnMonsterKilled (classname);
@@ -1670,7 +1671,7 @@ static void PF_sv_makestatic (void)
 		sv.num_statics++;
 
 	// throw the entity away now
-	OQuake_STAR_OnEntityFreed(ent);
+	OQuake_STAR_OnEntityFreed (ent);
 	ED_Free (ent);
 }
 

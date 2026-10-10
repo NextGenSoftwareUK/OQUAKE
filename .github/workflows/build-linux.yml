@@ -8,6 +8,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
+    - uses: ./.github/actions/build-ogengine
+      with:
+        rid: linux-x64
+        token: ${{ secrets.PRIVATE_SUBMODULE_PAT }}
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     - name: Build Docker image

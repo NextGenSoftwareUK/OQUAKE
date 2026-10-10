@@ -357,7 +357,8 @@ Moves the local angle positions
 */
 void CL_AdjustAngles (void)
 {
-	if (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ()) return;
+	if (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ())
+		return;
 
 	float speed;
 	float up, down;
@@ -418,7 +419,8 @@ void CL_BaseMove (usercmd_t *cmd)
 
 	VectorCopy (cl.viewangles, cmd->viewangles);
 
-	if (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ()) return;
+	if (OQuake_STAR_IsQuestPopupOpen () || OQuake_STAR_IsInventoryPopupOpen ())
+		return;
 
 	if (cls.signon != SIGNONS)
 		return;

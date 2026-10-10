@@ -1159,10 +1159,10 @@ static void SCR_DrawGUI (void *unused)
 		SCR_DrawDevStats (cbx); // johnfitz
 		SCR_DrawFPS (cbx);		// johnfitz
 		SCR_DrawClock (cbx);	// johnfitz
-	OQuake_STAR_DrawBeamedInStatus (cbx);
-	OQuake_STAR_DrawXpStatus (cbx);
-	OQuake_STAR_DrawVersionStatus (cbx);
-	OQuake_STAR_DrawInventoryOverlay (cbx);
+		OQuake_STAR_DrawBeamedInStatus (cbx);
+		OQuake_STAR_DrawXpStatus (cbx);
+		OQuake_STAR_DrawVersionStatus (cbx);
+		OQuake_STAR_DrawInventoryOverlay (cbx);
 		SCR_DrawConsole (cbx);
 		M_Draw (cbx);
 	}
