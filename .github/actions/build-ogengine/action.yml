@@ -1,0 +1,40 @@
+name: Build pinned OGEngine dependency
+description: Build the native game contract before compiling OQUAKE.
+inputs:
+  rid:
+    required: true
+    description: Native runtime identifier
+  token:
+    required: true
+    description: Private dependency checkout credential
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: NextGenSoftwareUK/OASIS
+        ref: master
+        path: oasis
+        submodules: recursive
+        token: ${{ inputs.token }}
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - shell: bash
+      run: |
+        set -euo pipefail
+        . oasis/Docker/oasis-dependency-versions.env
+        git clone --no-checkout "$LIBRARIES_REPO" NextGenSoftware-Libraries
+        git -C NextGenSoftware-Libraries checkout --detach "$LIBRARIES_COMMIT"
+        git clone --no-checkout "$HOLOCHAIN_REPO" holochain-client-csharp
+        git -C holochain-client-csharp checkout --detach "$HOLOCHAIN_COMMIT"
+        project="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/OGEngineClient.csproj"
+        dotnet restore "$project" -r '${{ inputs.rid }}'
+        dotnet publish "$project" -c Release -r '${{ inputs.rid }}' --self-contained true -m:1 -p:NoWarn=NU1605
+        native="$GITHUB_WORKSPACE/oasis/OASIS Omniverse/OGEngineClient/bin/Release/net10.0/${{ inputs.rid }}/publish"
+        case '${{ inputs.rid }}' in
+          win-*) cp "$native/ogengine.lib" "$native/ogengine.dll" Quake/ ;;
+          linux-*) cp "$native/ogengine.so" Quake/libogengine.so ;;
+          osx-*) cp "$native/ogengine.dylib" Quake/libogengine.dylib ;;
+          *) echo 'Unsupported native target' >&2; exit 1 ;;
+        esac
