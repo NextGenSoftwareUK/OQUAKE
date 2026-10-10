@@ -116,8 +116,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) | wc -l)" -eq 3
-          unzip -l artifacts/OQUAKE-Windows-x64-v$VERSION.zip | grep -q ogengine.dll
-          for archive in artifacts/*.tar.gz; do tar -tzf "$archive" | grep -q ogengine; done
+          # Consume the complete listing: grep -q closes stdout early and makes
+          # tar/unzip fail under pipefail even when the required library exists.
+          unzip -l artifacts/OQUAKE-Windows-x64-v$VERSION.zip | grep -F ogengine.dll > /dev/null
+          for archive in artifacts/*.tar.gz; do tar -tzf "$archive" | grep -F ogengine > /dev/null; done
           printf '%s\n' "$RELEASE_NOTES" > release-notes.md
           mapfile -t assets < <(find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) | sort)
           gh release create "v$VERSION" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "OQUAKE v$VERSION" --notes-file release-notes.md --verify-tag=false
